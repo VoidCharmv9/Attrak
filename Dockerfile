@@ -4,8 +4,14 @@ EXPOSE 80
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY . .
-RUN dotnet restore Attrak.sln
+
+# Copy only the necessary files for the web API project
+COPY ServerAtrrak/ ServerAtrrak/
+COPY AttrackSharedClass/ AttrackSharedClass/
+COPY Attrak.sln .
+
+# Restore and publish only the web API project
+RUN dotnet restore ServerAtrrak/ServerAtrrak.csproj
 RUN dotnet publish ServerAtrrak/ServerAtrrak.csproj -c Release -o /app/publish
 
 FROM base AS final
