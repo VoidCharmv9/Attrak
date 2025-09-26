@@ -4,20 +4,20 @@ using ServerAtrrak.Data;
 
 namespace ServerAtrrak.Services
 {
-    public class TeacherSubjectService
+    public class teachersubjectService
     {
         private readonly Dbconnection _dbConnection;
-        private readonly ILogger<TeacherSubjectService> _logger;
+        private readonly ILogger<teachersubjectService> _logger;
 
-        public TeacherSubjectService(Dbconnection dbConnection, ILogger<TeacherSubjectService> logger)
+        public teachersubjectService(Dbconnection dbConnection, ILogger<teachersubjectService> logger)
         {
             _dbConnection = dbConnection;
             _logger = logger;
         }
 
-        public async Task<List<TeacherSubjectAssignment>> GetTeacherSubjectsAsync(string teacherId)
+        public async Task<List<teachersubjectAssignment>> GetteachersubjectsAsync(string teacherId)
         {
-            var assignments = new List<TeacherSubjectAssignment>();
+            var assignments = new List<teachersubjectAssignment>();
 
             try
             {
@@ -26,7 +26,7 @@ namespace ServerAtrrak.Services
 
                 var query = @"
                     SELECT 
-                        ts.TeacherSubjectId,
+                        ts.teachersubjectId,
                         ts.TeacherId,
                         ts.SubjectId,
                         s.SubjectName,
@@ -35,7 +35,7 @@ namespace ServerAtrrak.Services
                         ts.Section,
                         TIME_FORMAT(s.ScheduleStart, '%H:%i:%s') as ScheduleStart,
                         TIME_FORMAT(s.ScheduleEnd, '%H:%i:%s') as ScheduleEnd
-                    FROM TeacherSubject ts
+                    FROM teachersubject ts
                     INNER JOIN Subject s ON ts.SubjectId = s.SubjectId
                     WHERE ts.TeacherId = @TeacherId
                     ORDER BY s.GradeLevel, s.Strand, s.ScheduleStart";
@@ -46,9 +46,9 @@ namespace ServerAtrrak.Services
                 using var reader = await command.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
-                    assignments.Add(new TeacherSubjectAssignment
+                    assignments.Add(new teachersubjectAssignment
                     {
-                        TeacherSubjectId = reader.GetString(0),
+                        teachersubjectId = reader.GetString(0),
                         TeacherId = reader.GetString(1),
                         SubjectId = reader.GetString(2),
                         SubjectName = reader.GetString(3),
@@ -71,9 +71,9 @@ namespace ServerAtrrak.Services
             return assignments;
         }
 
-        public async Task<List<TeacherSubjectAssignment>> GetAvailableSubjectsAsync(SubjectFilter filter)
+        public async Task<List<teachersubjectAssignment>> GetAvailableSubjectsAsync(SubjectFilter filter)
         {
-            var subjects = new List<TeacherSubjectAssignment>();
+            var subjects = new List<teachersubjectAssignment>();
 
             try
             {
@@ -91,10 +91,10 @@ namespace ServerAtrrak.Services
                         s.Strand,
                         TIME_FORMAT(s.ScheduleStart, '%H:%i:%s') as ScheduleStart,
                         TIME_FORMAT(s.ScheduleEnd, '%H:%i:%s') as ScheduleEnd
-                    FROM Subject s
+                    FROM subject s
                     WHERE s.SubjectId NOT IN (
                         SELECT DISTINCT ts.SubjectId 
-                        FROM TeacherSubject ts
+                        FROM teachersubject ts
                     )";
 
                 var parameters = new List<MySqlParameter>();
@@ -125,7 +125,7 @@ namespace ServerAtrrak.Services
                 using var reader = await command.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
-                    subjects.Add(new TeacherSubjectAssignment
+                    subjects.Add(new teachersubjectAssignment
                     {
                         SubjectId = reader.GetString(0),
                         SubjectName = reader.GetString(1),
@@ -147,7 +147,7 @@ namespace ServerAtrrak.Services
             return subjects;
         }
 
-        public async Task<TeacherSubjectResponse> AssignSubjectAsync(TeacherSubjectRequest request)
+        public async Task<teachersubjectResponse> AssignSubjectAsync(teachersubjectRequest request)
         {
             try
             {
@@ -157,18 +157,18 @@ namespace ServerAtrrak.Services
                 // Validate required fields
                 if (string.IsNullOrEmpty(request.TeacherId))
                 {
-                    return new TeacherSubjectResponse { Success = false, Message = "TeacherId is required" };
+                    return new teachersubjectResponse { Success = false, Message = "TeacherId is required" };
                 }
                 if (string.IsNullOrEmpty(request.SubjectId))
                 {
-                    return new TeacherSubjectResponse { Success = false, Message = "SubjectId is required" };
+                    return new teachersubjectResponse { Success = false, Message = "SubjectId is required" };
                 }
 
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
 
                 // Check if teacher already has this subject
-                var checkQuery = "SELECT COUNT(*) FROM TeacherSubject WHERE TeacherId = @TeacherId AND SubjectId = @SubjectId";
+                var checkQuery = "SELECT COUNT(*) FROM teachersubject WHERE TeacherId = @TeacherId AND SubjectId = @SubjectId";
                 using var checkCommand = new MySqlCommand(checkQuery, connection);
                 checkCommand.Parameters.AddWithValue("@TeacherId", request.TeacherId);
                 checkCommand.Parameters.AddWithValue("@SubjectId", request.SubjectId);
@@ -176,7 +176,7 @@ namespace ServerAtrrak.Services
                 var existingCount = Convert.ToInt32(await checkCommand.ExecuteScalarAsync());
                 if (existingCount > 0)
                 {
-                    return new TeacherSubjectResponse
+                    return new teachersubjectResponse
                     {
                         Success = false,
                         Message = "Teacher already has this subject assigned"
@@ -187,11 +187,11 @@ namespace ServerAtrrak.Services
                 try
                 {
                     var insertQuery = @"
-                        INSERT INTO TeacherSubject (TeacherSubjectId, TeacherId, SubjectId, Section)
-                        VALUES (@TeacherSubjectId, @TeacherId, @SubjectId, @Section)";
+                        INSERT INTO teachersubject (teachersubjectId, TeacherId, SubjectId, Section)
+                        VALUES (@teachersubjectId, @TeacherId, @SubjectId, @Section)";
 
                     using var insertCommand = new MySqlCommand(insertQuery, connection);
-                    insertCommand.Parameters.AddWithValue("@TeacherSubjectId", Guid.NewGuid().ToString());
+                    insertCommand.Parameters.AddWithValue("@teachersubjectId", Guid.NewGuid().ToString());
                     insertCommand.Parameters.AddWithValue("@TeacherId", request.TeacherId);
                     insertCommand.Parameters.AddWithValue("@SubjectId", request.SubjectId);
                     insertCommand.Parameters.AddWithValue("@Section", request.Section ?? "");
@@ -201,15 +201,15 @@ namespace ServerAtrrak.Services
                 }
                 catch (MySqlException ex) when (ex.Number == 1054) // Column doesn't exist
                 {
-                    _logger.LogWarning("Section column doesn't exist, inserting without section. Please add Section column to TeacherSubject table.");
+                    _logger.LogWarning("Section column doesn't exist, inserting without section. Please add Section column to teachersubject table.");
                     
                     // Fallback: insert without Section column
                     var fallbackQuery = @"
-                        INSERT INTO TeacherSubject (TeacherSubjectId, TeacherId, SubjectId)
-                        VALUES (@TeacherSubjectId, @TeacherId, @SubjectId)";
+                        INSERT INTO teachersubject (teachersubjectId, TeacherId, SubjectId)
+                        VALUES (@teachersubjectId, @TeacherId, @SubjectId)";
 
                     using var fallbackCommand = new MySqlCommand(fallbackQuery, connection);
-                    fallbackCommand.Parameters.AddWithValue("@TeacherSubjectId", Guid.NewGuid().ToString());
+                    fallbackCommand.Parameters.AddWithValue("@teachersubjectId", Guid.NewGuid().ToString());
                     fallbackCommand.Parameters.AddWithValue("@TeacherId", request.TeacherId);
                     fallbackCommand.Parameters.AddWithValue("@SubjectId", request.SubjectId);
 
@@ -221,7 +221,7 @@ namespace ServerAtrrak.Services
                 if (request.ScheduleStart != TimeSpan.Zero && request.ScheduleEnd != TimeSpan.Zero)
                 {
                     var updateQuery = @"
-                        UPDATE Subject 
+                        UPDATE subject 
                         SET ScheduleStart = @ScheduleStart, ScheduleEnd = @ScheduleEnd 
                         WHERE SubjectId = @SubjectId";
 
@@ -235,7 +235,7 @@ namespace ServerAtrrak.Services
 
                 _logger.LogInformation("Successfully assigned subject {SubjectId} to teacher {TeacherId}", request.SubjectId, request.TeacherId);
 
-                return new TeacherSubjectResponse
+                return new teachersubjectResponse
                 {
                     Success = true,
                     Message = "Subject assigned successfully"
@@ -244,7 +244,7 @@ namespace ServerAtrrak.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error assigning subject to teacher: {ErrorMessage}", ex.Message);
-                return new TeacherSubjectResponse
+                return new teachersubjectResponse
                 {
                     Success = false,
                     Message = $"Error assigning subject: {ex.Message}"
@@ -252,7 +252,7 @@ namespace ServerAtrrak.Services
             }
         }
 
-        public async Task<TeacherSubjectResponse> UpdateSubjectScheduleAsync(string teacherSubjectId, TimeSpan scheduleStart, TimeSpan scheduleEnd)
+        public async Task<teachersubjectResponse> UpdateSubjectScheduleAsync(string teacherSubjectId, TimeSpan scheduleStart, TimeSpan scheduleEnd)
         {
             try
             {
@@ -260,22 +260,22 @@ namespace ServerAtrrak.Services
                 await connection.OpenAsync();
 
                 var query = @"
-                    UPDATE Subject s
-                    INNER JOIN TeacherSubject ts ON s.SubjectId = ts.SubjectId
+                    UPDATE subject s
+                    INNER JOIN teachersubject ts ON s.SubjectId = ts.SubjectId
                     SET s.ScheduleStart = @ScheduleStart, s.ScheduleEnd = @ScheduleEnd
-                    WHERE ts.TeacherSubjectId = @TeacherSubjectId";
+                    WHERE ts.teachersubjectId = @teachersubjectId";
 
                 using var command = new MySqlCommand(query, connection);
                 command.Parameters.AddWithValue("@ScheduleStart", scheduleStart);
                 command.Parameters.AddWithValue("@ScheduleEnd", scheduleEnd);
-                command.Parameters.AddWithValue("@TeacherSubjectId", teacherSubjectId);
+                command.Parameters.AddWithValue("@teachersubjectId", teacherSubjectId);
 
                 var rowsAffected = await command.ExecuteNonQueryAsync();
 
                 if (rowsAffected > 0)
                 {
-                    _logger.LogInformation("Successfully updated schedule for teacher subject {TeacherSubjectId}", teacherSubjectId);
-                    return new TeacherSubjectResponse
+                    _logger.LogInformation("Successfully updated schedule for teacher subject {teachersubjectId}", teacherSubjectId);
+                    return new teachersubjectResponse
                     {
                         Success = true,
                         Message = "Schedule updated successfully"
@@ -283,7 +283,7 @@ namespace ServerAtrrak.Services
                 }
                 else
                 {
-                    return new TeacherSubjectResponse
+                    return new teachersubjectResponse
                     {
                         Success = false,
                         Message = "Teacher subject not found"
@@ -293,7 +293,7 @@ namespace ServerAtrrak.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating subject schedule: {ErrorMessage}", ex.Message);
-                return new TeacherSubjectResponse
+                return new teachersubjectResponse
                 {
                     Success = false,
                     Message = $"Error updating schedule: {ex.Message}"
@@ -301,24 +301,24 @@ namespace ServerAtrrak.Services
             }
         }
 
-        public async Task<TeacherSubjectResponse> RemoveSubjectAsync(string teacherSubjectId)
+        public async Task<teachersubjectResponse> RemoveSubjectAsync(string teacherSubjectId)
         {
             try
             {
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
 
-                var query = "DELETE FROM TeacherSubject WHERE TeacherSubjectId = @TeacherSubjectId";
+                var query = "DELETE FROM teachersubject WHERE teachersubjectId = @teachersubjectId";
 
                 using var command = new MySqlCommand(query, connection);
-                command.Parameters.AddWithValue("@TeacherSubjectId", teacherSubjectId);
+                command.Parameters.AddWithValue("@teachersubjectId", teacherSubjectId);
 
                 var rowsAffected = await command.ExecuteNonQueryAsync();
 
                 if (rowsAffected > 0)
                 {
-                    _logger.LogInformation("Successfully removed teacher subject {TeacherSubjectId}", teacherSubjectId);
-                    return new TeacherSubjectResponse
+                    _logger.LogInformation("Successfully removed teacher subject {teachersubjectId}", teacherSubjectId);
+                    return new teachersubjectResponse
                     {
                         Success = true,
                         Message = "Subject removed successfully"
@@ -326,7 +326,7 @@ namespace ServerAtrrak.Services
                 }
                 else
                 {
-                    return new TeacherSubjectResponse
+                    return new teachersubjectResponse
                     {
                         Success = false,
                         Message = "Teacher subject not found"
@@ -336,7 +336,7 @@ namespace ServerAtrrak.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error removing teacher subject: {ErrorMessage}", ex.Message);
-                return new TeacherSubjectResponse
+                return new teachersubjectResponse
                 {
                     Success = false,
                     Message = $"Error removing subject: {ex.Message}"
@@ -356,7 +356,7 @@ namespace ServerAtrrak.Services
                 // Check if Subject table is empty and initialize with sample data
                 await InitializeSampleSubjectsIfEmpty(connection);
 
-                var query = "SELECT DISTINCT GradeLevel FROM Subject ORDER BY GradeLevel";
+                var query = "SELECT DISTINCT GradeLevel FROM subject ORDER BY GradeLevel";
 
                 using var command = new MySqlCommand(query, connection);
                 using var reader = await command.ExecuteReaderAsync();
@@ -388,7 +388,7 @@ namespace ServerAtrrak.Services
                 // Check if Subject table is empty and initialize with sample data
                 await InitializeSampleSubjectsIfEmpty(connection);
 
-                var query = "SELECT DISTINCT Strand FROM Subject WHERE Strand IS NOT NULL ORDER BY Strand";
+                var query = "SELECT DISTINCT Strand FROM subject WHERE Strand IS NOT NULL ORDER BY Strand";
 
                 using var command = new MySqlCommand(query, connection);
                 using var reader = await command.ExecuteReaderAsync();
@@ -419,7 +419,7 @@ namespace ServerAtrrak.Services
 
                 var query = @"
                     SELECT t.TeacherId, t.FullName, t.Email, s.SchoolName, s.SchoolId
-                    FROM Teacher t
+                    FROM teacher t
                     INNER JOIN School s ON t.SchoolId = s.SchoolId
                     ORDER BY t.FullName";
 
@@ -457,7 +457,7 @@ namespace ServerAtrrak.Services
 
                 var query = @"
                     SELECT t.TeacherId, t.FullName, t.Email, s.SchoolName, s.SchoolId
-                    FROM Teacher t
+                    FROM teacher t
                     INNER JOIN School s ON t.SchoolId = s.SchoolId
                     INNER JOIN User u ON t.TeacherId = u.TeacherId
                     WHERE t.TeacherId = @TeacherId AND u.UserType = 'Teacher' AND u.IsActive = TRUE";
@@ -492,7 +492,7 @@ namespace ServerAtrrak.Services
             }
         }
 
-        public async Task<TeacherSubjectResponse> AddSubjectAsync(NewSubjectRequest request)
+        public async Task<teachersubjectResponse> AddSubjectAsync(NewSubjectRequest request)
         {
             try
             {
@@ -500,7 +500,7 @@ namespace ServerAtrrak.Services
                 await connection.OpenAsync();
 
                 // Check if subject with same name and grade already exists
-                var checkQuery = "SELECT COUNT(*) FROM Subject WHERE SubjectName = @SubjectName AND GradeLevel = @GradeLevel AND (Strand = @Strand OR (Strand IS NULL AND @Strand IS NULL))";
+                var checkQuery = "SELECT COUNT(*) FROM subject WHERE SubjectName = @SubjectName AND GradeLevel = @GradeLevel AND (Strand = @Strand OR (Strand IS NULL AND @Strand IS NULL))";
                 using var checkCommand = new MySqlCommand(checkQuery, connection);
                 checkCommand.Parameters.AddWithValue("@SubjectName", request.SubjectName);
                 checkCommand.Parameters.AddWithValue("@GradeLevel", request.GradeLevel);
@@ -509,7 +509,7 @@ namespace ServerAtrrak.Services
                 var existingCount = Convert.ToInt32(await checkCommand.ExecuteScalarAsync());
                 if (existingCount > 0)
                 {
-                    return new TeacherSubjectResponse
+                    return new teachersubjectResponse
                     {
                         Success = false,
                         Message = "A subject with this name already exists for the selected grade and strand"
@@ -519,7 +519,7 @@ namespace ServerAtrrak.Services
                 // Validate that end time is after start time
                 if (request.ScheduleEnd <= request.ScheduleStart)
                 {
-                    return new TeacherSubjectResponse
+                    return new teachersubjectResponse
                     {
                         Success = false,
                         Message = "End time must be after start time"
@@ -528,7 +528,7 @@ namespace ServerAtrrak.Services
 
                 // Insert new subject
                 var insertQuery = @"
-                    INSERT INTO Subject (SubjectId, SubjectName, GradeLevel, Strand, ScheduleStart, ScheduleEnd)
+                    INSERT INTO subject (SubjectId, SubjectName, GradeLevel, Strand, ScheduleStart, ScheduleEnd)
                     VALUES (@SubjectId, @SubjectName, @GradeLevel, @Strand, @ScheduleStart, @ScheduleEnd)";
 
                 using var insertCommand = new MySqlCommand(insertQuery, connection);
@@ -543,7 +543,7 @@ namespace ServerAtrrak.Services
 
                 _logger.LogInformation("Successfully added new subject: {SubjectName} for Grade {GradeLevel}", request.SubjectName, request.GradeLevel);
 
-                return new TeacherSubjectResponse
+                return new teachersubjectResponse
                 {
                     Success = true,
                     Message = "Subject added successfully"
@@ -552,7 +552,7 @@ namespace ServerAtrrak.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error adding new subject: {ErrorMessage}", ex.Message);
-                return new TeacherSubjectResponse
+                return new teachersubjectResponse
                 {
                     Success = false,
                     Message = $"Error adding subject: {ex.Message}"
@@ -560,9 +560,9 @@ namespace ServerAtrrak.Services
             }
         }
 
-        public async Task<List<StudentSubjectInfo>> GetStudentSubjectsAsync(string studentId)
+        public async Task<List<studentsubjectInfo>> GetstudentsubjectsAsync(string studentId)
         {
-            var subjects = new List<StudentSubjectInfo>();
+            var subjects = new List<studentsubjectInfo>();
 
             try
             {
@@ -575,7 +575,7 @@ namespace ServerAtrrak.Services
                 // First, get student information to determine grade level and strand
                 var studentQuery = @"
                     SELECT s.GradeLevel, s.Strand 
-                    FROM Student s 
+                    FROM student s 
                     WHERE s.StudentId = @StudentId";
 
                 int studentGradeLevel = 0;
@@ -610,8 +610,8 @@ namespace ServerAtrrak.Services
                         t.FullName as TeacherName,
                         t.TeacherId,
                         1 as HasTeacher
-                    FROM Subject s
-                    INNER JOIN TeacherSubject ts ON s.SubjectId = ts.SubjectId
+                    FROM subject s
+                    INNER JOIN teachersubject ts ON s.SubjectId = ts.SubjectId
                     INNER JOIN Teacher t ON ts.TeacherId = t.TeacherId
                     WHERE s.GradeLevel = @GradeLevel
                     AND (s.Strand = @Strand OR (s.Strand IS NULL AND @Strand IS NULL))
@@ -624,7 +624,7 @@ namespace ServerAtrrak.Services
                 using var reader = await command.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
-                    subjects.Add(new StudentSubjectInfo
+                    subjects.Add(new studentsubjectInfo
                     {
                         SubjectId = reader.GetString(0),
                         SubjectName = reader.GetString(1),
@@ -666,7 +666,7 @@ namespace ServerAtrrak.Services
                         st.GradeLevel,
                         COUNT(st.StudentId) as StudentCount,
                         @SubjectId as SubjectId
-                    FROM Student st
+                    FROM student st
                     INNER JOIN Subject sub ON st.GradeLevel = sub.GradeLevel
                     WHERE sub.SubjectId = @SubjectId
                     GROUP BY st.Section, st.GradeLevel
@@ -712,7 +712,7 @@ namespace ServerAtrrak.Services
                 // First, let's check what schools and students exist
                 var debugQuery = @"
                     SELECT DISTINCT s.SchoolName, st.GradeLevel, st.Section, COUNT(st.StudentId) as StudentCount
-                    FROM Student st
+                    FROM student st
                     INNER JOIN School s ON st.SchoolId = s.SchoolId
                     GROUP BY s.SchoolName, st.GradeLevel, st.Section
                     ORDER BY s.SchoolName, st.GradeLevel, st.Section";
@@ -736,7 +736,7 @@ namespace ServerAtrrak.Services
                         st.GradeLevel,
                         COUNT(st.StudentId) as StudentCount,
                         @SubjectId as SubjectId
-                    FROM Student st
+                    FROM student st
                     INNER JOIN School s ON st.SchoolId = s.SchoolId
                     WHERE s.SchoolName = @SchoolName
                     GROUP BY st.Section, st.GradeLevel
@@ -779,7 +779,7 @@ namespace ServerAtrrak.Services
             try
             {
                 // Check if Subject table has any data
-                var countQuery = "SELECT COUNT(*) FROM Subject";
+                var countQuery = "SELECT COUNT(*) FROM subject";
                 using var countCommand = new MySqlCommand(countQuery, connection);
                 var count = Convert.ToInt32(await countCommand.ExecuteScalarAsync());
 
@@ -843,7 +843,7 @@ namespace ServerAtrrak.Services
                     };
 
                     var insertQuery = @"
-                        INSERT INTO Subject (SubjectId, SubjectName, GradeLevel, Strand, ScheduleStart, ScheduleEnd)
+                        INSERT INTO subject (SubjectId, SubjectName, GradeLevel, Strand, ScheduleStart, ScheduleEnd)
                         VALUES (@SubjectId, @SubjectName, @GradeLevel, @Strand, @ScheduleStart, @ScheduleEnd)";
 
                     foreach (var (subjectName, gradeLevel, strand, scheduleStart, scheduleEnd) in sampleSubjects)

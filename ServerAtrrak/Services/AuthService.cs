@@ -103,7 +103,7 @@ namespace ServerAtrrak.Services
                 var query = @"
                     SELECT UserId, Username, Email, Password, UserType, 
                            IsActive, CreatedAt, UpdatedAt, LastLoginAt, TeacherId, StudentId
-                    FROM User 
+                    FROM user 
                     WHERE Username = @Username";
 
                 using var command = new MySqlCommand(query, connection);
@@ -163,7 +163,7 @@ namespace ServerAtrrak.Services
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            var query = "UPDATE User SET LastLoginAt = @LastLoginAt WHERE UserId = @UserId";
+            var query = "UPDATE user SET LastLoginAt = @LastLoginAt WHERE UserId = @UserId";
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@LastLoginAt", DateTime.UtcNow);
             command.Parameters.AddWithValue("@UserId", userId);

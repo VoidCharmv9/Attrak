@@ -2,7 +2,7 @@
 -- Run this SQL to add sample schools with different regions
 
 -- Sample schools with different regions
-INSERT INTO School (SchoolId, SchoolName, Region, Division, District, SchoolAddress) VALUES
+INSERT INTO school (SchoolId, SchoolName, Region, Division, District, SchoolAddress) VALUES
 (UUID(), 'Manila High School', 'National Capital Region (NCR)', 'Manila', 'Manila District I', 'Manila, Philippines'),
 (UUID(), 'Quezon City High School', 'National Capital Region (NCR)', 'Quezon City', 'Quezon City District I', 'Quezon City, Philippines'),
 (UUID(), 'Makati High School', 'National Capital Region (NCR)', 'Makati', 'Makati District', 'Makati, Philippines'),
@@ -12,7 +12,7 @@ INSERT INTO School (SchoolId, SchoolName, Region, Division, District, SchoolAddr
 (UUID(), 'Davao High School', 'Region XI - Davao Region', 'Davao', 'Davao District', 'Davao, Philippines');
 
 -- Check what regions are in the database
-SELECT DISTINCT Region FROM School ORDER BY Region;
+SELECT DISTINCT Region FROM school ORDER BY Region;
 
 -- Check total count of schools
-SELECT COUNT(*) as TotalSchools FROM School;
+SELECT COUNT(*) as TotalSchools FROM school;

@@ -1,5 +1,5 @@
 -- USER TABLE
-CREATE TABLE User (
+CREATE TABLE user (
     UserId VARCHAR(36) PRIMARY KEY,
     Username VARCHAR(50) UNIQUE NOT NULL,
     Email VARCHAR(100) UNIQUE NOT NULL,
@@ -12,12 +12,12 @@ CREATE TABLE User (
     -- Foreign key references based on user type
     TeacherId VARCHAR(36) NULL,
     StudentId VARCHAR(36) NULL,
-    FOREIGN KEY (TeacherId) REFERENCES Teacher(TeacherId),
-    FOREIGN KEY (StudentId) REFERENCES Student(StudentId)
+    FOREIGN KEY (TeacherId) REFERENCES teacher(TeacherId),
+    FOREIGN KEY (StudentId) REFERENCES student(StudentId)
 );
 
 -- Create indexes for better performance
-CREATE INDEX idx_user_username ON User(Username);
-CREATE INDEX idx_user_email ON User(Email);
-CREATE INDEX idx_user_type ON User(UserType);
-CREATE INDEX idx_user_active ON User(IsActive);
+CREATE INDEX idx_user_username ON user(Username);
+CREATE INDEX idx_user_email ON user(Email);
+CREATE INDEX idx_user_type ON user(UserType);
+CREATE INDEX idx_user_active ON user(IsActive);

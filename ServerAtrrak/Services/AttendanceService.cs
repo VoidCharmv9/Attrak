@@ -114,7 +114,7 @@ namespace ServerAtrrak.Services
 
                 var query = @"
                     SELECT a.StudentId, s.FullName, a.Timestamp, a.Status
-                    FROM Attendance a
+                    FROM attendance a
                     INNER JOIN Student s ON a.StudentId = s.StudentId
                     WHERE a.SubjectId = @SubjectId 
                     AND DATE(a.Timestamp) = @Date
@@ -154,7 +154,7 @@ namespace ServerAtrrak.Services
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            var query = "SELECT COUNT(*) FROM Student WHERE StudentId = @StudentId AND IsActive = TRUE";
+            var query = "SELECT COUNT(*) FROM student WHERE StudentId = @StudentId AND IsActive = TRUE";
 
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@StudentId", studentId);
@@ -172,7 +172,7 @@ namespace ServerAtrrak.Services
             // The attendance type is handled by updating the same record
             var query = @"
                 SELECT COUNT(*) 
-                FROM Attendance 
+                FROM attendance 
                 WHERE StudentId = @StudentId 
                 AND SubjectId = @SubjectId 
                 AND DATE(Timestamp) = @Date";
@@ -191,7 +191,7 @@ namespace ServerAtrrak.Services
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            var query = "SELECT FullName FROM Student WHERE StudentId = @StudentId";
+            var query = "SELECT FullName FROM student WHERE StudentId = @StudentId";
 
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@StudentId", studentId);
@@ -219,7 +219,7 @@ namespace ServerAtrrak.Services
                         sub.Strand as SubjectStrand,
                         ts.Section as TeacherSection,
                         t.FullName as TeacherName
-                    FROM Student s
+                    FROM student s
                     INNER JOIN StudentSubject ss ON s.StudentId = ss.StudentId
                     INNER JOIN Subject sub ON ss.SubjectId = sub.SubjectId
                     INNER JOIN TeacherSubject ts ON sub.SubjectId = ts.SubjectId
@@ -322,7 +322,7 @@ namespace ServerAtrrak.Services
             try
             {
                 // Check if student exists
-                var studentQuery = "SELECT FullName FROM Student WHERE StudentId = @StudentId AND SchoolId = @SchoolId";
+                var studentQuery = "SELECT FullName FROM student WHERE StudentId = @StudentId AND SchoolId = @SchoolId";
                 using var studentCommand = new MySqlCommand(studentQuery, connection);
                 studentCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
                 studentCommand.Parameters.AddWithValue("@SchoolId", request.SchoolId);
@@ -340,7 +340,7 @@ namespace ServerAtrrak.Services
                 }
 
                 // Check if student is enrolled in the subject
-                var enrollmentQuery = "SELECT COUNT(*) FROM StudentSubject WHERE StudentId = @StudentId AND SubjectId = @SubjectId";
+                var enrollmentQuery = "SELECT COUNT(*) FROM studentsubject WHERE StudentId = @StudentId AND SubjectId = @SubjectId";
                 using var enrollmentCommand = new MySqlCommand(enrollmentQuery, connection);
                 enrollmentCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
                 enrollmentCommand.Parameters.AddWithValue("@SubjectId", request.SubjectId);
@@ -358,7 +358,7 @@ namespace ServerAtrrak.Services
                 }
 
                 // Check if teacher is assigned to the subject
-                var teacherQuery = "SELECT COUNT(*) FROM TeacherSubject WHERE TeacherId = @TeacherId AND SubjectId = @SubjectId";
+                var teacherQuery = "SELECT COUNT(*) FROM teachersubject WHERE TeacherId = @TeacherId AND SubjectId = @SubjectId";
                 using var teacherCommand = new MySqlCommand(teacherQuery, connection);
                 teacherCommand.Parameters.AddWithValue("@TeacherId", request.TeacherId);
                 teacherCommand.Parameters.AddWithValue("@SubjectId", request.SubjectId);
@@ -406,7 +406,7 @@ namespace ServerAtrrak.Services
 
                 var query = @"
                     SELECT ScheduleStart, ScheduleEnd
-                    FROM Subject
+                    FROM subject
                     WHERE SubjectId = @SubjectId";
 
                 using var command = new MySqlCommand(query, connection);
@@ -455,7 +455,7 @@ namespace ServerAtrrak.Services
 
                 // Check if attendance record already exists for today
                 var existingQuery = @"
-                    SELECT AttendanceId FROM Attendance 
+                    SELECT AttendanceId FROM attendance 
                     WHERE StudentId = @StudentId 
                     AND SubjectId = @SubjectId 
                     AND DATE(Timestamp) = @Date";
@@ -471,7 +471,7 @@ namespace ServerAtrrak.Services
                 {
                     // Update existing record - update timestamp and status
                     var updateQuery = @"
-                        UPDATE Attendance 
+                        UPDATE attendance 
                         SET Timestamp = @Timestamp, 
                             Status = @Status
                         WHERE AttendanceId = @AttendanceId";
@@ -487,7 +487,7 @@ namespace ServerAtrrak.Services
                 {
                     // Insert new record
                     var insertQuery = @"
-                        INSERT INTO Attendance (AttendanceId, StudentId, SubjectId, TeacherId, Timestamp, Status)
+                        INSERT INTO attendance (AttendanceId, StudentId, SubjectId, TeacherId, Timestamp, Status)
                         VALUES (@AttendanceId, @StudentId, @SubjectId, @TeacherId, @Timestamp, @Status)";
 
                     using var insertCommand = new MySqlCommand(insertQuery, connection);

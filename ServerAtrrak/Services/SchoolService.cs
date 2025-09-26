@@ -24,7 +24,7 @@ namespace ServerAtrrak.Services
                 await connection.OpenAsync();
                 _logger.LogInformation("Database connection opened successfully");
 
-                var query = "SELECT DISTINCT Region FROM School ORDER BY Region";
+                var query = "SELECT DISTINCT Region FROM school ORDER BY Region";
                 using var command = new MySqlCommand(query, connection);
                 using var reader = await command.ExecuteReaderAsync();
 
@@ -83,7 +83,7 @@ namespace ServerAtrrak.Services
                 await connection.OpenAsync();
                 _logger.LogInformation("Database connection opened successfully");
 
-                var query = "SELECT DISTINCT Division FROM School WHERE Region = @Region ORDER BY Division";
+                var query = "SELECT DISTINCT Division FROM school WHERE Region = @Region ORDER BY Division";
                 using var command = new MySqlCommand(query, connection);
                 command.Parameters.AddWithValue("@Region", region);
                 _logger.LogInformation("Executing query: {Query} with parameter: {Region}", query, region);
@@ -124,7 +124,7 @@ namespace ServerAtrrak.Services
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
 
-                var query = "SELECT DISTINCT District FROM School WHERE Division = @Division AND District IS NOT NULL ORDER BY District";
+                var query = "SELECT DISTINCT District FROM school WHERE Division = @Division AND District IS NOT NULL ORDER BY District";
                 using var command = new MySqlCommand(query, connection);
                 command.Parameters.AddWithValue("@Division", division);
                 using var reader = await command.ExecuteReaderAsync();
@@ -157,7 +157,7 @@ namespace ServerAtrrak.Services
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            var checkQuery = "SELECT SchoolId FROM School WHERE SchoolName = @SchoolName AND Division = @Division AND (District = @District OR (@District IS NULL AND District IS NULL))";
+            var checkQuery = "SELECT SchoolId FROM school WHERE SchoolName = @SchoolName AND Division = @Division AND (District = @District OR (@District IS NULL AND District IS NULL))";
             using var checkCommand = new MySqlCommand(checkQuery, connection);
             checkCommand.Parameters.AddWithValue("@SchoolName", request.SchoolName);
             checkCommand.Parameters.AddWithValue("@Division", request.Division);
@@ -171,7 +171,7 @@ namespace ServerAtrrak.Services
 
             var schoolId = Guid.NewGuid().ToString();
             var insertQuery = @"
-                INSERT INTO School (SchoolId, SchoolName, Region, Division, District, SchoolAddress)
+                INSERT INTO school (SchoolId, SchoolName, Region, Division, District, SchoolAddress)
                 VALUES (@SchoolId, @SchoolName, @Region, @Division, @District, @SchoolAddress)";
 
             using var insertCommand = new MySqlCommand(insertQuery, connection);
@@ -191,7 +191,7 @@ namespace ServerAtrrak.Services
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            var query = "SELECT COUNT(*) FROM School WHERE SchoolName = @SchoolName AND Division = @Division AND (District = @District OR (@District IS NULL AND District IS NULL))";
+            var query = "SELECT COUNT(*) FROM school WHERE SchoolName = @SchoolName AND Division = @Division AND (District = @District OR (@District IS NULL AND District IS NULL))";
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@SchoolName", schoolName);
             command.Parameters.AddWithValue("@Division", division);
@@ -208,7 +208,7 @@ namespace ServerAtrrak.Services
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
 
-                var query = "SELECT SchoolId, SchoolName, Region, Division, District, SchoolAddress FROM School ORDER BY SchoolName";
+                var query = "SELECT SchoolId, SchoolName, Region, Division, District, SchoolAddress FROM school ORDER BY SchoolName";
                 using var command = new MySqlCommand(query, connection);
                 using var reader = await command.ExecuteReaderAsync();
 

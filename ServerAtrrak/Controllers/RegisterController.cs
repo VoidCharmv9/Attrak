@@ -308,7 +308,7 @@ namespace ServerAtrrak.Controllers
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            var query = "SELECT COUNT(*) FROM User WHERE Email = @Email";
+            var query = "SELECT COUNT(*) FROM user WHERE Email = @Email";
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@Email", email);
 
@@ -324,7 +324,7 @@ namespace ServerAtrrak.Controllers
 
             var teacherId = Guid.NewGuid().ToString();
             var query = @"
-                INSERT INTO Teacher (TeacherId, FullName, Email, SchoolId)
+                INSERT INTO teacher (TeacherId, FullName, Email, SchoolId)
                 VALUES (@TeacherId, @FullName, @Email, @SchoolId)";
 
             using var command = new MySqlCommand(query, connection);
@@ -344,7 +344,7 @@ namespace ServerAtrrak.Controllers
 
             var userId = Guid.NewGuid().ToString();
             var query = @"
-                INSERT INTO User (UserId, Username, Email, Password, UserType, IsActive, CreatedAt, UpdatedAt, TeacherId)
+                INSERT INTO user (UserId, Username, Email, Password, UserType, IsActive, CreatedAt, UpdatedAt, TeacherId)
                 VALUES (@UserId, @Username, @Email, @Password, @UserType, @IsActive, @CreatedAt, @UpdatedAt, @TeacherId)";
 
             using var command = new MySqlCommand(query, connection);
@@ -367,7 +367,7 @@ namespace ServerAtrrak.Controllers
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            var query = "SELECT SchoolId FROM School WHERE SchoolName = @SchoolName LIMIT 1";
+            var query = "SELECT SchoolId FROM school WHERE SchoolName = @SchoolName LIMIT 1";
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@SchoolName", schoolName);
 
@@ -382,7 +382,7 @@ namespace ServerAtrrak.Controllers
 
             var studentId = Guid.NewGuid().ToString();
             var query = @"
-                INSERT INTO Student (StudentId, FullName, Email, GradeLevel, Section, Strand, SchoolId, QRImage)
+                INSERT INTO student (StudentId, FullName, Email, GradeLevel, Section, Strand, SchoolId, QRImage)
                 VALUES (@StudentId, @FullName, @Email, @GradeLevel, @Section, @Strand, @SchoolId, @QRImage)";
 
             using var command = new MySqlCommand(query, connection);
@@ -406,7 +406,7 @@ namespace ServerAtrrak.Controllers
 
             var userId = Guid.NewGuid().ToString();
             var query = @"
-                INSERT INTO User (UserId, Username, Email, Password, UserType, IsActive, CreatedAt, UpdatedAt, StudentId)
+                INSERT INTO user (UserId, Username, Email, Password, UserType, IsActive, CreatedAt, UpdatedAt, StudentId)
                 VALUES (@UserId, @Username, @Email, @Password, @UserType, @IsActive, @CreatedAt, @UpdatedAt, @StudentId)";
 
             using var command = new MySqlCommand(query, connection);
@@ -453,7 +453,7 @@ namespace ServerAtrrak.Controllers
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            var query = "UPDATE Student SET QRImage = @QRImage WHERE StudentId = @StudentId";
+            var query = "UPDATE student SET QRImage = @QRImage WHERE StudentId = @StudentId";
             using var command = new MySqlCommand(query, connection);
             
             // Convert Base64 string to bytes for LONGBLOB storage (store as UTF8 bytes)
@@ -472,7 +472,7 @@ namespace ServerAtrrak.Controllers
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            var query = "SELECT QRImage FROM Student WHERE StudentId = @StudentId";
+            var query = "SELECT QRImage FROM student WHERE StudentId = @StudentId";
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@StudentId", studentId);
 
@@ -505,7 +505,7 @@ namespace ServerAtrrak.Controllers
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            var query = "SELECT StudentId, FullName, GradeLevel, Section, Strand, SchoolId FROM Student WHERE StudentId = @StudentId";
+            var query = "SELECT StudentId, FullName, GradeLevel, Section, Strand, SchoolId FROM student WHERE StudentId = @StudentId";
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@StudentId", studentId);
 
@@ -531,7 +531,7 @@ namespace ServerAtrrak.Controllers
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            var query = "SELECT SchoolId, SchoolName, Region, Division, District, SchoolAddress FROM School WHERE SchoolId = @SchoolId";
+            var query = "SELECT SchoolId, SchoolName, Region, Division, District, SchoolAddress FROM school WHERE SchoolId = @SchoolId";
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@SchoolId", schoolId);
 
