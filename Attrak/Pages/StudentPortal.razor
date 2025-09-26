@@ -1,0 +1,487 @@
+@page "/student-portal"
+@using Attrak.Services
+@using AttrackSharedClass.Models
+@using System.ComponentModel.DataAnnotations
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject HttpClient Http
+
+<PageTitle>Student Portal - Attrak</PageTitle>
+
+<div class="container-fluid vh-100 d-flex align-items-center justify-content-center bg-light">
+    <div class="row w-100">
+        <div class="col-md-10 col-lg-8 mx-auto">
+            <div class="card shadow">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4">
+                        <h2 class="fw-bold text-primary">Student Portal</h2>
+                        <p class="text-muted">Attrak Attendance Management System</p>
+                    </div>
+
+                    <!-- Tab Navigation -->
+                    <ul class="nav nav-tabs mb-4" id="authTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link @(isLoginTab ? "active" : "")" id="login-tab" type="button" @onclick="() => SwitchTab(true)">
+                                Login
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link @(!isLoginTab ? "active" : "")" id="register-tab" type="button" @onclick="() => SwitchTab(false)">
+                                Register
+                            </button>
+                        </li>
+                    </ul>
+
+                    <!-- Login Form -->
+                    @if (isLoginTab)
+                    {
+                        <EditForm Model="loginRequest" OnValidSubmit="HandleLogin">
+                            <DataAnnotationsValidator />
+                            
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Username</label>
+                                <InputText id="username" class="form-control" @bind-Value="loginRequest.Username" @oninput="OnLoginUsernameChanged" placeholder="Enter your username" />
+                                <ValidationMessage For="@(() => loginRequest.Username)" class="text-danger" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="password" class="form-label">Password</label>
+                                <InputText id="password" type="password" class="form-control" @bind-Value="loginRequest.Password" @oninput="OnLoginPasswordChanged" placeholder="Enter your password" />
+                                <ValidationMessage For="@(() => loginRequest.Password)" class="text-danger" />
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(errorMessage))
+                            {
+                                <div class="alert alert-danger" role="alert">
+                                    @errorMessage
+                                </div>
+                            }
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg" disabled="@isLoading">
+                                    @if (isLoading)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        <span>Logging in...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Login</span>
+                                    }
+                                </button>
+                            </div>
+                        </EditForm>
+                    }
+
+                    <!-- Registration Form -->
+                    @if (!isLoginTab)
+                    {
+                        <EditForm Model="studentRegisterRequest" OnValidSubmit="HandleStudentRegister">
+                            <DataAnnotationsValidator />
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="reg-username" class="form-label">Username</label>
+                                    <InputText id="reg-username" class="form-control" @bind-Value="studentRegisterRequest.Username" @oninput="OnUsernameChanged" placeholder="Enter username" />
+                                    <ValidationMessage For="@(() => studentRegisterRequest.Username)" class="text-danger" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="reg-email" class="form-label">Email</label>
+                                    <InputText id="reg-email" type="email" class="form-control" @bind-Value="studentRegisterRequest.Email" placeholder="Enter email" />
+                                    <ValidationMessage For="@(() => studentRegisterRequest.Email)" class="text-danger" />
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="reg-password" class="form-label">Password</label>
+                                    <InputText id="reg-password" type="password" class="form-control" @bind-Value="studentRegisterRequest.Password" @oninput="OnPasswordChanged" placeholder="Enter password" />
+                                    <ValidationMessage For="@(() => studentRegisterRequest.Password)" class="text-danger" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="reg-fullname" class="form-label">Full Name</label>
+                                    <InputText id="reg-fullname" class="form-control text-uppercase" @bind-Value="studentRegisterRequest.FullName" @oninput="OnFullNameChanged" placeholder="Enter full name" />
+                                    <ValidationMessage For="@(() => studentRegisterRequest.FullName)" class="text-danger" />
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="reg-gradelevel" class="form-label">Grade Level</label>
+                                    <InputSelect id="reg-gradelevel" class="form-select" @bind-Value="studentRegisterRequest.GradeLevel" @onchange="OnGradeLevelChanged">
+                                        <option value="">Select Grade Level</option>
+                                        <option value="7">Grade 7</option>
+                                        <option value="8">Grade 8</option>
+                                        <option value="9">Grade 9</option>
+                                        <option value="10">Grade 10</option>
+                                        <option value="11">Grade 11</option>
+                                        <option value="12">Grade 12</option>
+                                    </InputSelect>
+                                    <ValidationMessage For="@(() => studentRegisterRequest.GradeLevel)" class="text-danger" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="reg-section" class="form-label">Section</label>
+                                    <InputText id="reg-section" class="form-control" @bind-Value="studentRegisterRequest.Section" placeholder="Enter section" />
+                                    <ValidationMessage For="@(() => studentRegisterRequest.Section)" class="text-danger" />
+                                </div>
+                            </div>
+
+                            @if (ShouldShowStrandDropdown())
+                            {
+                                <div class="mb-3">
+                                    <label for="reg-strand" class="form-label">Strand</label>
+                                    <InputSelect id="reg-strand" class="form-select" @bind-Value="studentRegisterRequest.Strand">
+                                        <option value="">Select Strand</option>
+                                        <option value="STEM">STEM</option>
+                                        <option value="ABM">ABM</option>
+                                        <option value="HUMSS">HUMSS</option>
+                                        <option value="TVL">TVL</option>
+                                        <option value="GAS">GAS</option>
+                                    </InputSelect>
+                                    <ValidationMessage For="@(() => studentRegisterRequest.Strand)" class="text-danger" />
+                                </div>
+                            }
+
+                            <div class="mb-3">
+                                <label for="reg-school" class="form-label">School</label>
+                                <div class="position-relative">
+                                    <InputText id="reg-school" class="form-control" @bind-Value="studentRegisterRequest.SchoolName" @oninput="OnSchoolSearchChanged" placeholder="Type to search for your school..." />
+                                    <ValidationMessage For="@(() => studentRegisterRequest.SchoolName)" class="text-danger" />
+                                    
+                                    @if (showSchoolDropdown && filteredSchools.Any())
+                                    {
+                                        <div class="position-absolute w-100 bg-white border rounded shadow-lg" style="z-index: 1000; max-height: 200px; overflow-y: auto;">
+                                            @foreach (var school in filteredSchools.Take(10))
+                                            {
+                                                <div class="p-2 border-bottom cursor-pointer hover-bg-light" @onclick="() => SelectSchool(school)" style="cursor: pointer;">
+                                                    <div class="fw-bold">@school.SchoolName</div>
+                                                    <small class="text-muted">@school.Region, @school.Division</small>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                                <small class="form-text text-muted">Start typing to search for your school</small>
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(errorMessage))
+                            {
+                                <div class="alert alert-danger" role="alert">
+                                    @errorMessage
+                                </div>
+                            }
+
+                            @if (!string.IsNullOrEmpty(successMessage))
+                            {
+                                <div class="alert alert-success" role="alert">
+                                    @successMessage
+                                </div>
+                            }
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-success btn-lg" disabled="@isLoading">
+                                    @if (isLoading)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        <span>Registering...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Register as Student</span>
+                                    }
+                                </button>
+                            </div>
+                        </EditForm>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginRequest loginRequest = new();
+    private StudentRegisterRequest studentRegisterRequest = new();
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+    private bool isLoading = false;
+    private bool isLoginTab = true;
+
+    // School search functionality
+    private List<SchoolInfo> allSchools = new();
+    private List<SchoolInfo> filteredSchools = new();
+    private bool showSchoolDropdown = false;
+    private Timer? schoolSearchTimer;
+
+    public class StudentRegisterRequest
+    {
+        [Required]
+        [MaxLength(50)]
+        public string Username { get; set; } = string.Empty;
+        
+        [Required]
+        [EmailAddress]
+        [MaxLength(100)]
+        public string Email { get; set; } = string.Empty;
+        
+        [Required]
+        [MinLength(6)]
+        public string Password { get; set; } = string.Empty;
+        
+        [Required]
+        [MaxLength(100)]
+        public string FullName { get; set; } = string.Empty;
+        
+        [Required]
+        [Range(7, 12, ErrorMessage = "Grade level must be between 7 and 12")]
+        public int GradeLevel { get; set; }
+        
+        [Required]
+        [MaxLength(50)]
+        public string Section { get; set; } = string.Empty;
+        
+        [MaxLength(50)]
+        public string? Strand { get; set; }
+        
+        [Required]
+        [MaxLength(200)]
+        public string SchoolName { get; set; } = string.Empty;
+    }
+
+    public class SchoolInfo
+    {
+        public string SchoolId { get; set; } = string.Empty;
+        public string SchoolName { get; set; } = string.Empty;
+        public string Region { get; set; } = string.Empty;
+        public string Division { get; set; } = string.Empty;
+        public string? District { get; set; }
+        public string? SchoolAddress { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if user is already logged in
+        var currentUser = await AuthService.GetCurrentUserAsync();
+        if (currentUser != null)
+        {
+            Navigation.NavigateTo("/dashboard");
+        }
+
+        // Load all schools for search
+        await LoadAllSchools();
+    }
+
+    private void SwitchTab(bool showLogin)
+    {
+        isLoginTab = showLogin;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+    }
+
+    private void OnUsernameChanged(ChangeEventArgs e)
+    {
+        studentRegisterRequest.Username = e.Value?.ToString() ?? "";
+    }
+
+    private void OnPasswordChanged(ChangeEventArgs e)
+    {
+        studentRegisterRequest.Password = e.Value?.ToString() ?? "";
+    }
+
+    private void OnFullNameChanged(ChangeEventArgs e)
+    {
+        studentRegisterRequest.FullName = e.Value?.ToString()?.ToUpper() ?? "";
+    }
+
+    private void OnLoginUsernameChanged(ChangeEventArgs e)
+    {
+        loginRequest.Username = e.Value?.ToString() ?? "";
+    }
+
+    private void OnLoginPasswordChanged(ChangeEventArgs e)
+    {
+        loginRequest.Password = e.Value?.ToString() ?? "";
+    }
+
+    private async Task HandleLogin()
+    {
+        if (isLoading) return;
+
+        isLoading = true;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var response = await AuthService.LoginAsync(loginRequest);
+            
+            if (response.Success)
+            {
+                Navigation.NavigateTo("/student-dashboard");
+            }
+            else
+            {
+                errorMessage = response.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "An error occurred during login. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleStudentRegister()
+    {
+        if (isLoading) return;
+
+        isLoading = true;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/register/student", studentRegisterRequest);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<StudentRegisterResponse>();
+                if (result?.Success == true)
+                {
+                    successMessage = "Registration successful! Redirecting to your QR code...";
+                    studentRegisterRequest = new(); // Clear form
+                    
+                    // Redirect to QR code page after a short delay
+                    await Task.Delay(2000);
+                    if (!string.IsNullOrEmpty(result.StudentId))
+                    {
+                        Navigation.NavigateTo($"/student-qr/{result.StudentId}");
+                    }
+                    else
+                    {
+                        // Switch to login tab if no StudentId
+                        isLoginTab = true;
+                    }
+                }
+                else
+                {
+                    errorMessage = result?.Message ?? "Registration failed";
+                }
+            }
+            else
+            {
+                var errorResult = await response.Content.ReadFromJsonAsync<StudentRegisterResponse>();
+                errorMessage = errorResult?.Message ?? "Registration failed";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "An error occurred during registration. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadAllSchools()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<SchoolInfo>>("api/register/schools/all");
+            allSchools = response ?? new List<SchoolInfo>();
+        }
+        catch (Exception ex)
+        {
+            // Handle error silently for now
+            allSchools = new List<SchoolInfo>();
+        }
+    }
+
+    private void OnSchoolSearchChanged(ChangeEventArgs e)
+    {
+        var searchTerm = e.Value?.ToString() ?? "";
+        studentRegisterRequest.SchoolName = searchTerm;
+
+        // Cancel previous timer
+        schoolSearchTimer?.Dispose();
+
+        if (string.IsNullOrEmpty(searchTerm))
+        {
+            showSchoolDropdown = false;
+            filteredSchools.Clear();
+            StateHasChanged();
+            return;
+        }
+
+        // Set a timer to delay the search
+        schoolSearchTimer = new Timer(async _ =>
+        {
+            await InvokeAsync(() =>
+            {
+                filteredSchools = allSchools
+                    .Where(s => s.SchoolName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                               s.Region.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                               s.Division.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(s => s.SchoolName)
+                    .ToList();
+
+                showSchoolDropdown = filteredSchools.Any();
+                StateHasChanged();
+            });
+        }, null, 300, Timeout.Infinite);
+    }
+
+    private void SelectSchool(SchoolInfo school)
+    {
+        studentRegisterRequest.SchoolName = school.SchoolName;
+        showSchoolDropdown = false;
+        filteredSchools.Clear();
+        StateHasChanged();
+    }
+
+    public class StudentRegisterResponse
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string? StudentId { get; set; }
+        public string? UserId { get; set; }
+        public string? QRCodeData { get; set; }
+    }
+
+    private bool ShouldShowStrandDropdown()
+    {
+        return studentRegisterRequest.GradeLevel == 11 || studentRegisterRequest.GradeLevel == 12;
+    }
+
+    private async Task OnGradeLevelChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int gradeLevel))
+        {
+            studentRegisterRequest.GradeLevel = gradeLevel;
+        }
+        else
+        {
+            studentRegisterRequest.GradeLevel = 0; // Default value
+        }
+        
+        // Clear strand selection if not Grade 11 or 12
+        if (!ShouldShowStrandDropdown())
+        {
+            studentRegisterRequest.Strand = "";
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        schoolSearchTimer?.Dispose();
+    }
+}

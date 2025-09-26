@@ -1,0 +1,471 @@
+@page "/"
+@page "/login"
+@using Attrak.Services
+@using AttrackSharedClass.Models
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject HttpClient Http
+
+<PageTitle>Login - Attrak</PageTitle>
+
+<div class="container-fluid vh-100 d-flex align-items-center justify-content-center bg-light">
+    <div class="row w-100">
+        <div class="col-md-10 col-lg-8 mx-auto">
+            <div class="card shadow">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4">
+                        <h2 class="fw-bold text-primary">Attrak</h2>
+                        <p class="text-muted">Attendance Management System</p>
+                    </div>
+
+                    <!-- Tab Navigation -->
+                    <ul class="nav nav-tabs mb-4" id="authTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link @(isLoginTab ? "active" : "")" id="login-tab" type="button" @onclick="() => SwitchTab(true)">
+                                Login
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link @(!isLoginTab ? "active" : "")" id="register-tab" type="button" @onclick="() => SwitchTab(false)">
+                                Register
+                            </button>
+                        </li>
+                    </ul>
+
+                    <!-- Login Form -->
+                    @if (isLoginTab)
+                    {
+                        <EditForm Model="loginRequest" OnValidSubmit="HandleLogin">
+                            <DataAnnotationsValidator />
+                            
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Username</label>
+                                <InputText id="username" class="form-control" @bind-Value="loginRequest.Username" @oninput="OnLoginUsernameChanged" placeholder="Enter your username" />
+                                <ValidationMessage For="@(() => loginRequest.Username)" class="text-danger" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="password" class="form-label">Password</label>
+                                <InputText id="password" type="password" class="form-control" @bind-Value="loginRequest.Password" @oninput="OnLoginPasswordChanged" placeholder="Enter your password" />
+                                <ValidationMessage For="@(() => loginRequest.Password)" class="text-danger" />
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(errorMessage))
+                            {
+                                <div class="alert alert-danger" role="alert">
+                                    @errorMessage
+                                </div>
+                            }
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg" disabled="@isLoading">
+                                    @if (isLoading)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        <span>Logging in...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Login</span>
+                                    }
+                                </button>
+                            </div>
+                        </EditForm>
+                    }
+
+                    <!-- Registration Form -->
+                    @if (!isLoginTab)
+                    {
+                        <EditForm Model="registerRequest" OnValidSubmit="HandleRegister">
+                            <DataAnnotationsValidator />
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="reg-username" class="form-label">Username</label>
+                                    <InputText id="reg-username" class="form-control" @bind-Value="registerRequest.Username" @oninput="OnUsernameChanged" placeholder="Enter username" />
+                                    <ValidationMessage For="@(() => registerRequest.Username)" class="text-danger" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="reg-email" class="form-label">Email</label>
+                                    <InputText id="reg-email" type="email" class="form-control" @bind-Value="registerRequest.Email" placeholder="Enter email" />
+                                    <ValidationMessage For="@(() => registerRequest.Email)" class="text-danger" />
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="reg-password" class="form-label">Password</label>
+                                    <InputText id="reg-password" type="password" class="form-control" @bind-Value="registerRequest.Password" @oninput="OnPasswordChanged" placeholder="Enter password" />
+                                    <ValidationMessage For="@(() => registerRequest.Password)" class="text-danger" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="reg-fullname" class="form-label">Full Name</label>
+                                    <InputText id="reg-fullname" class="form-control text-uppercase" @bind-Value="registerRequest.FullName" @oninput="OnFullNameChanged" placeholder="Enter full name" />
+                                    <ValidationMessage For="@(() => registerRequest.FullName)" class="text-danger" />
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="reg-region" class="form-label">Region</label>
+                                <InputSelect id="reg-region" class="form-select" @bind-Value="registerRequest.Region" @bind-Value:after="OnRegionChanged">
+                                    <option value="">Select Region</option>
+                                    @foreach (var region in regions)
+                                    {
+                                        <option value="@region">@region</option>
+                                    }
+                                    <option value="manual">+ Add New Region</option>
+                                </InputSelect>
+                                @if (registerRequest.Region == "manual")
+                                {
+                                    <InputText class="form-control mt-2" @bind-Value="manualRegion" placeholder="Enter region name manually" />
+                                }
+                                <ValidationMessage For="@(() => registerRequest.Region)" class="text-danger" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="reg-division" class="form-label">Division</label>
+                                <InputSelect id="reg-division" class="form-select" @bind-Value="registerRequest.Division" @bind-Value:after="OnDivisionChanged" disabled="@(string.IsNullOrEmpty(registerRequest.Region))">
+                                    <option value="">Select Division</option>
+                                    @foreach (var division in divisions)
+                                    {
+                                        <option value="@division">@division</option>
+                                    }
+                                    <option value="manual">+ Add New Division</option>
+                                </InputSelect>
+                                @if (registerRequest.Division == "manual")
+                                {
+                                    <InputText class="form-control mt-2" @bind-Value="manualDivision" placeholder="Enter division name manually" />
+                                }
+                                <small class="text-danger">Division Debug: "@registerRequest.Division" == "manual" = @(registerRequest.Division == "manual")</small>
+                                <ValidationMessage For="@(() => registerRequest.Division)" class="text-danger" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="reg-district" class="form-label">District (Optional)</label>
+                                <InputSelect id="reg-district" class="form-select" @bind-Value="registerRequest.District" @bind-Value:after="OnDistrictChanged" disabled="@(string.IsNullOrEmpty(registerRequest.Division))">
+                                    <option value="">Select District (Optional)</option>
+                                    @foreach (var district in districts)
+                                    {
+                                        <option value="@district">@district</option>
+                                    }
+                                    <option value="manual">+ Add New District</option>
+                                </InputSelect>
+                                @if (registerRequest.District == "manual")
+                                {
+                                    <InputText class="form-control mt-2" @bind-Value="manualDistrict" placeholder="Enter district name manually" />
+                                }
+                                <small class="text-danger">District Debug: "@registerRequest.District" == "manual" = @(registerRequest.District == "manual")</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="reg-schoolname" class="form-label">School Name</label>
+                                <InputText id="reg-schoolname" class="form-control" @bind-Value="registerRequest.SchoolName" placeholder="Enter school name" />
+                                <ValidationMessage For="@(() => registerRequest.SchoolName)" class="text-danger" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="reg-schooladdress" class="form-label">School Address (Optional)</label>
+                                <InputTextArea id="reg-schooladdress" class="form-control" @bind-Value="registerRequest.SchoolAddress" placeholder="Enter school address" rows="2" />
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(errorMessage))
+                            {
+                                <div class="alert alert-danger" role="alert">
+                                    @errorMessage
+                                </div>
+                            }
+
+                            @if (!string.IsNullOrEmpty(successMessage))
+                            {
+                                <div class="alert alert-success" role="alert">
+                                    @successMessage
+                                </div>
+                            }
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-success btn-lg" disabled="@isLoading">
+                                    @if (isLoading)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        <span>Registering...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Register as Teacher</span>
+                                    }
+                                </button>
+                            </div>
+                        </EditForm>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginRequest loginRequest = new();
+    private RegisterRequest registerRequest = new();
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+    private bool isLoading = false;
+    private bool isLoginTab = true;
+
+    private List<string> regions = new();
+    private List<string> divisions = new();
+    private List<string> districts = new();
+
+    // Manual input variables
+    private string manualRegion = "";
+    private string manualDivision = "";
+    private string manualDistrict = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if user is already logged in
+        var currentUser = await AuthService.GetCurrentUserAsync();
+        if (currentUser != null)
+        {
+            Navigation.NavigateTo("/dashboard");
+        }
+
+        // Load regions for registration
+        await LoadRegions();
+    }
+
+    private void SwitchTab(bool showLogin)
+    {
+        isLoginTab = showLogin;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+    }
+
+    private void OnUsernameChanged(ChangeEventArgs e)
+    {
+        registerRequest.Username = e.Value?.ToString() ?? "";
+    }
+
+    private void OnPasswordChanged(ChangeEventArgs e)
+    {
+        registerRequest.Password = e.Value?.ToString() ?? "";
+    }
+
+    private void OnFullNameChanged(ChangeEventArgs e)
+    {
+        registerRequest.FullName = e.Value?.ToString()?.ToUpper() ?? "";
+    }
+
+    private void OnLoginUsernameChanged(ChangeEventArgs e)
+    {
+        loginRequest.Username = e.Value?.ToString() ?? "";
+    }
+
+    private void OnLoginPasswordChanged(ChangeEventArgs e)
+    {
+        loginRequest.Password = e.Value?.ToString() ?? "";
+    }
+
+    private async Task HandleLogin()
+    {
+        if (isLoading) return;
+
+        isLoading = true;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var response = await AuthService.LoginAsync(loginRequest);
+            
+            if (response.Success)
+            {
+                Navigation.NavigateTo("/dashboard");
+            }
+            else
+            {
+                errorMessage = response.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "An error occurred during login. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleRegister()
+    {
+        if (isLoading) return;
+
+        isLoading = true;
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            // Use manual values if "manual" is selected
+            if (registerRequest.Region == "manual" && !string.IsNullOrEmpty(manualRegion))
+            {
+                registerRequest.Region = manualRegion;
+            }
+            if (registerRequest.Division == "manual" && !string.IsNullOrEmpty(manualDivision))
+            {
+                registerRequest.Division = manualDivision;
+            }
+            if (registerRequest.District == "manual" && !string.IsNullOrEmpty(manualDistrict))
+            {
+                registerRequest.District = manualDistrict;
+            }
+
+            var response = await Http.PostAsJsonAsync("api/register/teacher", registerRequest);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<RegisterResponse>();
+                if (result?.Success == true)
+                {
+                    successMessage = "Registration successful! You can now login with your credentials.";
+                    registerRequest = new(); // Clear form
+                    // Switch to login tab
+                    isLoginTab = true;
+                }
+                else
+                {
+                    errorMessage = result?.Message ?? "Registration failed";
+                }
+            }
+            else
+            {
+                var errorResult = await response.Content.ReadFromJsonAsync<RegisterResponse>();
+                errorMessage = errorResult?.Message ?? "Registration failed";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "An error occurred during registration. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadRegions()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<string>>("api/register/regions");
+            regions = response ?? new List<string>();
+        }
+        catch (Exception ex)
+        {
+            // Handle error silently for now
+        }
+    }
+
+    private async Task OnRegionChanged()
+    {
+        registerRequest.Division = "";
+        registerRequest.District = "";
+        divisions.Clear();
+        districts.Clear();
+
+        Console.WriteLine($"Region changed to: '{registerRequest.Region}'");
+        Console.WriteLine($"Region length: {registerRequest.Region?.Length}");
+        Console.WriteLine($"Region bytes: {System.Text.Encoding.UTF8.GetBytes(registerRequest.Region ?? "")}");
+        Console.WriteLine($"Region == 'manual': {registerRequest.Region == "manual"}");
+        Console.WriteLine($"Region equals 'manual': {string.Equals(registerRequest.Region, "manual", StringComparison.Ordinal)}");
+
+        if (!string.IsNullOrEmpty(registerRequest.Region) && registerRequest.Region != "manual")
+        {
+            Console.WriteLine($"Loading divisions for region: '{registerRequest.Region}'");
+            await LoadDivisions(registerRequest.Region);
+        }
+        else
+        {
+            Console.WriteLine("Region is empty or manual, not loading divisions");
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task OnDivisionChanged()
+    {
+        registerRequest.District = "";
+        districts.Clear();
+
+        Console.WriteLine($"Division changed to: {registerRequest.Division}");
+
+        if (!string.IsNullOrEmpty(registerRequest.Division) && registerRequest.Division != "manual")
+        {
+            Console.WriteLine($"Loading districts for division: {registerRequest.Division}");
+            await LoadDistricts(registerRequest.Division);
+        }
+        else
+        {
+            Console.WriteLine("Division is empty or manual, not loading districts");
+        }
+        
+        StateHasChanged();
+    }
+
+    private void OnDistrictChanged()
+    {
+        Console.WriteLine($"District changed to: {registerRequest.District}");
+        Console.WriteLine($"District == 'manual': {registerRequest.District == "manual"}");
+        StateHasChanged();
+    }
+
+    private async Task LoadDivisions(string region)
+    {
+        try
+        {
+            Console.WriteLine($"Loading divisions for region: {region}");
+            var url = $"api/register/divisions/{Uri.EscapeDataString(region)}";
+            Console.WriteLine($"API URL: {url}");
+            Console.WriteLine($"HttpClient BaseAddress: {Http.BaseAddress}");
+            Console.WriteLine($"Full URL: {Http.BaseAddress}{url}");
+            
+            var response = await Http.GetFromJsonAsync<List<string>>(url);
+            divisions = response ?? new List<string>();
+            Console.WriteLine($"Loaded {divisions.Count} divisions: {string.Join(", ", divisions)}");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading divisions: {ex.Message}");
+            Console.WriteLine($"Exception details: {ex}");
+            divisions = new List<string>();
+        }
+    }
+
+    private async Task LoadDistricts(string division)
+    {
+        try
+        {
+            Console.WriteLine($"Loading districts for division: {division}");
+            var url = $"api/register/districts/{Uri.EscapeDataString(division)}";
+            Console.WriteLine($"API URL: {url}");
+            Console.WriteLine($"HttpClient BaseAddress: {Http.BaseAddress}");
+            Console.WriteLine($"Full URL: {Http.BaseAddress}{url}");
+            
+            var response = await Http.GetFromJsonAsync<List<string>>(url);
+            districts = response ?? new List<string>();
+            Console.WriteLine($"Loaded {districts.Count} districts: {string.Join(", ", districts)}");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading districts: {ex.Message}");
+            Console.WriteLine($"Exception details: {ex}");
+            districts = new List<string>();
+        }
+    }
+}

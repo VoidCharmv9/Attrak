@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>6383f5e8-f662-46bd-a55e-d98f08866bf6</SharedGUID>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>AttrackSharedClass</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)Models\User.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Models\LoginRequest.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Models\LoginResponse.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Models\RegisterRequest.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Models\RegisterResponse.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Models\TeacherSubjectAssignment.cs" />
+  </ItemGroup>
+</Project>

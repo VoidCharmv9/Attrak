@@ -1,0 +1,6 @@
+@ServerAtrrak_HostAddress = http://localhost:5078
+
+GET {{ServerAtrrak_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,42 @@
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http;
+
+namespace ScannerMaui
+{
+    public static class MauiProgram
+    {
+        public static MauiApp CreateMauiApp()
+        {
+            var builder = MauiApp.CreateBuilder();
+            builder
+                .UseMauiApp<App>()
+                .ConfigureFonts(fonts =>
+                {
+                    fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
+                });
+
+            builder.Services.AddMauiBlazorWebView();
+
+            // Configure HttpClient with base URL
+            builder.Services.AddHttpClient("AttrakAPI", client =>
+            {
+                // Replace with your actual API base URL
+                client.BaseAddress = new Uri("http://voidcharm-001-site1.jtempurl.com/");
+                client.DefaultRequestHeaders.Add("Accept", "application/json");
+            });
+            
+            // Also add a default HttpClient
+            
+            // Register services
+            builder.Services.AddSingleton<ScannerMaui.Services.AuthService>();
+
+#if DEBUG
+    		builder.Services.AddBlazorWebViewDeveloperTools();
+    		builder.Logging.AddDebug();
+#endif
+
+            return builder.Build();
+        }
+    }
+}

@@ -1,0 +1,1387 @@
+@page "/teacher-subject-load"
+@using AttrackSharedClass.Models
+@using System.Text.Json
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components
+@using Attrak.Services
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@inject IAuthService AuthService
+
+<PageTitle>Teacher Subject Load Management</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-chalkboard-teacher me-2"></i>
+                        Teacher Subject Load Management
+                    </h3>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            @successMessage
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            @errorMessage
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-outline-danger btn-sm" @onclick="RefreshTeacherData">
+                                    <i class="fas fa-sync-alt me-1"></i>
+                                    Refresh Teacher Data
+                                </button>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    }
+                    
+                    <!-- Current Teacher Display -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                <h5 class="alert-heading">
+                                    <i class="fas fa-user-tie me-2"></i>
+                                    Current Teacher
+                                </h5>
+                                @if (!string.IsNullOrEmpty(selectedTeacherName))
+                                {
+                                    <p class="mb-0">
+                                        <strong>@selectedTeacherName</strong>
+                                        <br>
+                                        <small class="text-muted">Managing your subject load</small>
+                                    </p>
+                                }
+                                else
+                                {
+                                    <p class="mb-0 text-muted">No teacher selected</p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(selectedTeacherId))
+                    {
+                        <!-- Filters -->
+                        <div class="row mb-4">
+                            <div class="col-md-3">
+                                <label class="form-label">Grade Level:</label>
+                                <InputSelect id="grade-filter" class="form-select" @bind-Value="selectedGrade" @bind-Value:after="OnFilterChanged">
+                                    <option value="">All Grades</option>
+                                    @foreach (var grade in availableGrades)
+                                    {
+                                        <option value="@grade">Grade @grade</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Strand:</label>
+                                <InputSelect id="strand-filter" class="form-select" @bind-Value="selectedStrand" @bind-Value:after="OnFilterChanged">
+                                    <option value="">All Strands</option>
+                                    @foreach (var strand in availableStrands)
+                                    {
+                                        <option value="@strand">@strand</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Search Subject:</label>
+                                <InputText id="search-subject" class="form-control" @bind-Value="searchTerm" @bind-Value:after="OnFilterChanged" placeholder="Search by subject name..." />
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">&nbsp;</label>
+                                <button class="btn btn-outline-secondary w-100" @onclick="ClearFilters">
+                                    <i class="fas fa-times"></i> Clear
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Tabs -->
+                        <ul class="nav nav-tabs" id="subjectTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link @(activeTab == "available" ? "active" : "")" 
+                                        @onclick="@(() => SetActiveTab("available"))" 
+                                        type="button">
+                                    <i class="fas fa-plus-circle me-1"></i>
+                                    Available Subjects (@availableSubjects.Count)
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link @(activeTab == "assigned" ? "active" : "")" 
+                                        @onclick="@(() => SetActiveTab("assigned"))" 
+                                        type="button">
+                                    <i class="fas fa-check-circle me-1"></i>
+                                    My Subjects (@assignedSubjects.Count)
+                                </button>
+                            </li>
+                        </ul>
+
+                        <!-- Add New Subject Button -->
+                        <div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+                            <div></div>
+                            <button class="btn btn-primary" @onclick="ShowAddSubjectForm">
+                                <i class="fas fa-plus me-1"></i>
+                                Add New Subject
+                            </button>
+                        </div>
+
+                        <div class="tab-content mt-3">
+                            <!-- Available Subjects Tab -->
+                            <div class="tab-pane @(activeTab == "available" ? "show active" : "")" id="available-subjects">
+                                @if (isLoading)
+                                {
+                                    <div class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p class="mt-2">Loading available subjects...</p>
+                                    </div>
+                                }
+                                else if (availableSubjects.Any())
+                                {
+                                    <div class="row">
+                                        @foreach (var subject in availableSubjects)
+                                        {
+                                            <div class="col-md-6 col-lg-4 mb-3">
+                                                <div class="card h-100">
+                                                    <div class="card-body">
+                                                        <h6 class="card-title">@subject.SubjectName</h6>
+                                                        <p class="card-text">
+                                                            <small class="text-muted">
+                                                                <i class="fas fa-graduation-cap me-1"></i>
+                                                                Grade @subject.GradeLevel
+                                                                @if (!string.IsNullOrEmpty(subject.Strand))
+                                                                {
+                                                                    <span class="badge bg-info ms-1">@subject.Strand</span>
+                                                                }
+                                                            </small>
+                                                        </p>
+                                                        <p class="card-text">
+                                                            <small class="text-muted">
+                                                                <i class="fas fa-clock me-1"></i>
+                                                                @subject.ScheduleStart.ToString("hh\\:mm") - @subject.ScheduleEnd.ToString("hh\\:mm")
+                                                            </small>
+                                                        </p>
+                                                    </div>
+                                                    <div class="card-footer">
+                                                        <button class="btn btn-success btn-sm w-100" 
+                                                                @onclick="() => ShowSectionSelectionModal(subject)"
+                                                                disabled="@isAssigning">
+                                                            @if (isAssigning)
+                                                            {
+                                                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <i class="fas fa-plus me-1"></i>
+                                                            }
+                                                            Assign Subject
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="text-center py-4">
+                                        <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                                        <p class="text-muted">No subjects found matching your criteria.</p>
+                                    </div>
+                                }
+                            </div>
+
+                            <!-- Assigned Subjects Tab -->
+                            <div class="tab-pane @(activeTab == "assigned" ? "show active" : "")" id="assigned-subjects">
+                                @if (isLoading)
+                                {
+                                    <div class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p class="mt-2">Loading assigned subjects...</p>
+                                    </div>
+                                }
+                                else if (assignedSubjects.Any())
+                                {
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Subject Name</th>
+                                                    <th>Grade</th>
+                                                    <th>Strand</th>
+                                                    <th>Section</th>
+                                                    <th>Start Time</th>
+                                                    <th>End Time</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var subject in assignedSubjects)
+                                                {
+                                                    <tr>
+                                                        <td>@subject.SubjectName</td>
+                                                        <td>
+                                                            <span class="badge bg-primary">Grade @subject.GradeLevel</span>
+                                                        </td>
+                                                        <td>
+                                                            @if (!string.IsNullOrEmpty(subject.Strand))
+                                                            {
+                                                                <span class="badge bg-info">@subject.Strand</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="text-muted">-</span>
+                                                            }
+                                                        </td>
+                                                        <td>
+                                                            @if (!string.IsNullOrEmpty(subject.Section))
+                                                            {
+                                                                <span class="badge bg-success">@subject.Section</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="text-muted">-</span>
+                                                            }
+                                                        </td>
+                                                        <td>
+                                                            @if (editingSchedule == subject.TeacherSubjectId)
+                                                            {
+                                                                <input type="time" class="form-control form-control-sm" @bind="editingStartTimeOnly" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subject.ScheduleStart.ToString("hh\\:mm")
+                                                            }
+                                                        </td>
+                                                        <td>
+                                                            @if (editingSchedule == subject.TeacherSubjectId)
+                                                            {
+                                                                <input type="time" class="form-control form-control-sm" @bind="editingEndTimeOnly" />
+                                                            }
+                                                            else
+                                                            {
+                                                                @subject.ScheduleEnd.ToString("hh\\:mm")
+                                                            }
+                                                        </td>
+                                                        <td>
+                                                            @if (editingSchedule == subject.TeacherSubjectId)
+                                                            {
+                                                                <button class="btn btn-success btn-sm me-1" @onclick="() => SaveSchedule(subject.TeacherSubjectId)" disabled="@isUpdatingSchedule">
+                                                                    @if (isUpdatingSchedule)
+                                                                    {
+                                                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <i class="fas fa-check"></i>
+                                                                    }
+                                                                </button>
+                                                                <button class="btn btn-secondary btn-sm" @onclick="CancelEdit" disabled="@isUpdatingSchedule">
+                                                                    <i class="fas fa-times"></i>
+                                                                </button>
+                                                            }
+                                                            else
+                                                            {
+                                                                <button class="btn btn-info btn-sm me-1" @onclick="() => ViewSections(subject)" title="View Sections">
+                                                                    <i class="fas fa-users"></i>
+                                                                </button>
+                                                                <button class="btn btn-warning btn-sm me-1" @onclick="() => EditSchedule(subject)">
+                                                                    <i class="fas fa-edit"></i>
+                                                                </button>
+                                                                <button class="btn btn-danger btn-sm" @onclick="() => RemoveSubject(subject.TeacherSubjectId)">
+                                                                    <i class="fas fa-trash"></i>
+                                                                </button>
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="text-center py-4">
+                                        <i class="fas fa-chalkboard-teacher fa-3x text-muted mb-3"></i>
+                                        <p class="text-muted">No subjects assigned yet.</p>
+                                        <p class="text-muted">Go to the "Available Subjects" tab to assign subjects.</p>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-5">
+                            <i class="fas fa-user-tie fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">Select a Teacher</h5>
+                            <p class="text-muted">Please select a teacher to manage their subject load.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Subject Modal -->
+@if (showAddSubjectForm)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus-circle me-2"></i>
+                        Add New Subject
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="HideAddSubjectForm"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="newSubject" OnValidSubmit="AddNewSubject">
+                        <DataAnnotationsValidator />
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Subject Name *</label>
+                                <InputText class="form-control" @bind-Value="newSubject.SubjectName" placeholder="Enter subject name" />
+                                <ValidationMessage For="@(() => newSubject.SubjectName)" />
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Grade Level *</label>
+                                <InputSelect class="form-select" @bind-Value="newSubject.GradeLevel">
+                                    <option value="">Select Grade</option>
+                                    @for (int i = 7; i <= 12; i++)
+                                    {
+                                        <option value="@i">Grade @i</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => newSubject.GradeLevel)" />
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Strand</label>
+                                <InputSelect class="form-select" @bind-Value="newSubject.Strand">
+                                    <option value="">No Strand (Grades 7-10)</option>
+                                    <option value="ABM">ABM - Accountancy, Business and Management</option>
+                                    <option value="HUMSS">HUMSS - Humanities and Social Sciences</option>
+                                    <option value="STEM">STEM - Science, Technology, Engineering and Mathematics</option>
+                                    <option value="GAS">GAS - General Academic Strand</option>
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Schedule Start Time *</label>
+                                <input type="time" class="form-control" 
+                                       value="@(newSubjectStartTime?.ToString("HH:mm") ?? "")" 
+                                       @onchange="@((ChangeEventArgs e) => OnStartTimeChanged(e))" />
+                                <ValidationMessage For="@(() => newSubjectStartTime)" />
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Schedule End Time *</label>
+                                <input type="time" class="form-control" 
+                                       value="@(newSubjectEndTime?.ToString("HH:mm") ?? "")" 
+                                       @onchange="@((ChangeEventArgs e) => OnEndTimeChanged(e))" />
+                                <ValidationMessage For="@(() => newSubjectEndTime)" />
+                            </div>
+                        </div>
+                         
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="HideAddSubjectForm">
+                                <i class="fas fa-times me-1"></i>
+                                Cancel
+                            </button>
+                            <button type="submit" class="btn btn-primary" disabled="@isAddingSubject">
+                                @if (isAddingSubject)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                else
+                                {
+                                    <i class="fas fa-save me-1"></i>
+                                }
+                                Add Subject
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- View Sections Modal -->
+@if (showSectionsModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-users me-2"></i>
+                        Sections for @selectedSubjectForSections?.SubjectName
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="HideSectionsModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (isLoadingSections)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Loading sections...</p>
+                        </div>
+                    }
+                    else if (subjectSections != null && subjectSections.Any())
+                    {
+                        <div class="row">
+                            @foreach (var section in subjectSections)
+                            {
+                                <div class="col-md-6 col-lg-4 mb-3">
+                                    <div class="card border-0 shadow-sm h-100">
+                                        <div class="card-body">
+                                            <h6 class="card-title text-primary">@(section.SectionName)</h6>
+                                            <p class="card-text">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-graduation-cap me-1"></i>
+                                                    Grade @(section.GradeLevel)
+                                                </small>
+                                            </p>
+                                            <p class="card-text">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-users me-1"></i>
+                                                    @(section.StudentCount) students
+                                                </small>
+                                            </p>
+                                        </div>
+                                        <div class="card-footer">
+                                            <button class="btn btn-primary btn-sm w-100" @onclick="() => ViewAttendance(section)">
+                                                <i class="fas fa-clipboard-list me-1"></i>
+                                                View Attendance
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-4">
+                            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                            <h6 class="text-muted">No sections found</h6>
+                            <p class="text-muted">No sections are assigned to this subject yet.</p>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="HideSectionsModal">
+                        <i class="fas fa-times me-1"></i>
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Section Selection Modal -->
+@if (showSectionSelectionModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-users me-2"></i>
+                        Select Section for @selectedSubjectForAssignment?.SubjectName
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="HideSectionSelectionModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (isLoadingAvailableSections)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Loading available sections...</p>
+                        </div>
+                    }
+                    else if (availableSectionsForAssignment != null && availableSectionsForAssignment.Any())
+                    {
+                        <div class="row">
+                            @foreach (var section in availableSectionsForAssignment)
+                            {
+                                <div class="col-md-6 col-lg-4 mb-3">
+                                    <div class="card border-0 shadow-sm h-100 section-card" 
+                                         @onclick="() => SelectSection(section)"
+                                         style="cursor: pointer; transition: all 0.2s;">
+                                        <div class="card-body">
+                                            <h6 class="card-title text-primary">@(section.SectionName)</h6>
+                                            <p class="card-text">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-graduation-cap me-1"></i>
+                                                    Grade @(section.GradeLevel)
+                                                </small>
+                                            </p>
+                                            <p class="card-text">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-users me-1"></i>
+                                                    @(section.StudentCount) students
+                                                </small>
+                                            </p>
+                                        </div>
+                                        <div class="card-footer">
+                                            <button class="btn btn-primary btn-sm w-100" @onclick="() => SelectSection(section)">
+                                                <i class="fas fa-check me-1"></i>
+                                                Select This Section
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-4">
+                            <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                            <h6 class="text-warning">No sections available</h6>
+                            <p class="text-muted">No sections found for Grade @(selectedSubjectForAssignment?.GradeLevel) in your school.</p>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="HideSectionSelectionModal">
+                        <i class="fas fa-times me-1"></i>
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Confirmation Modal -->
+@if (showConfirmationModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-question-circle me-2"></i>
+                        @confirmationTitle
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="HideConfirmationModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>@confirmationMessage</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="HideConfirmationModal">
+                        <i class="fas fa-times me-1"></i>
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary" @onclick="ConfirmAction" disabled="@isAssigning">
+                        @if (isAssigning)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        else
+                        {
+                            <i class="fas fa-check me-1"></i>
+                        }
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // Data
+    private List<TeacherInfo> teachers = new();
+    private List<TeacherSubjectAssignment> availableSubjects = new();
+    private List<TeacherSubjectAssignment> assignedSubjects = new();
+    private List<int> availableGrades = new();
+    private List<string> availableStrands = new();
+
+    // UI State
+    private string selectedTeacherId = "";
+    private string selectedTeacherName = "";
+    private string selectedGrade = "";
+    private string selectedStrand = "";
+    private string searchTerm = "";
+    private string activeTab = "available";
+    private bool isLoading = false;
+    private bool isAssigning = false;
+
+    // Schedule Editing
+    private string editingSchedule = "";
+    private TimeSpan editingStartTime;
+    private TimeSpan editingEndTime;
+    private TimeOnly? editingStartTimeOnly;
+    private TimeOnly? editingEndTimeOnly;
+    private bool isUpdatingSchedule = false;
+
+    // Messages
+    private string successMessage = "";
+    private string errorMessage = "";
+
+    // Add Subject Form
+    private bool showAddSubjectForm = false;
+    private bool isAddingSubject = false;
+    private NewSubjectRequest newSubject = new();
+    private TimeOnly? newSubjectStartTime;
+    private TimeOnly? newSubjectEndTime;
+
+    // View Sections Modal
+    private bool showSectionsModal = false;
+    private bool isLoadingSections = false;
+    private TeacherSubjectAssignment? selectedSubjectForSections;
+    private List<SubjectSectionInfo> subjectSections = new();
+
+    // Section Selection Modal
+    private bool showSectionSelectionModal = false;
+    private bool isLoadingAvailableSections = false;
+    private TeacherSubjectAssignment? selectedSubjectForAssignment;
+    private List<SubjectSectionInfo> availableSectionsForAssignment = new();
+
+    // Confirmation Modal
+    private bool showConfirmationModal = false;
+    private string confirmationTitle = "";
+    private string confirmationMessage = "";
+    private Func<Task>? confirmationAction = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTeachers();
+        await LoadAvailableGrades();
+        await LoadAvailableStrands();
+        await AutoSelectCurrentTeacher();
+    }
+
+    private async Task LoadTeachers()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<TeacherInfo>>("api/teachersubject/teachers");
+            if (response != null)
+            {
+                teachers = response;
+                Console.WriteLine($"Loaded {teachers.Count} teachers:");
+                foreach (var teacher in teachers)
+                {
+                    Console.WriteLine($"  - {teacher.TeacherId}: {teacher.FullName} ({teacher.SchoolName})");
+                }
+            }
+            else
+            {
+                Console.WriteLine("No teachers loaded - response was null");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading teachers: {ex.Message}");
+            errorMessage = "Error loading teachers list";
+        }
+    }
+
+    private async Task LoadAvailableGrades()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<int>>("api/teachersubject/grades");
+            if (response != null)
+            {
+                availableGrades = response;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading grades: {ex.Message}");
+        }
+    }
+
+    private async Task LoadAvailableStrands()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<string>>("api/teachersubject/strands");
+            if (response != null)
+            {
+                availableStrands = response;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading strands: {ex.Message}");
+        }
+    }
+
+    private async Task AutoSelectCurrentTeacher()
+    {
+        try
+        {
+            var currentUser = await AuthService.GetCurrentUserAsync();
+            Console.WriteLine($"Current user: {currentUser?.Username}, Type: {currentUser?.UserType}, TeacherId: {currentUser?.TeacherId}");
+            
+            if (currentUser != null && currentUser.UserType == UserType.Teacher && !string.IsNullOrEmpty(currentUser.TeacherId))
+            {
+                selectedTeacherId = currentUser.TeacherId;
+                Console.WriteLine($"Selected teacher ID: {selectedTeacherId}");
+                Console.WriteLine($"Available teachers count: {teachers.Count}");
+                
+                // Find the teacher's full name from the teachers list
+                var teacher = teachers.FirstOrDefault(t => t.TeacherId == currentUser.TeacherId);
+                if (teacher != null)
+                {
+                    selectedTeacherName = teacher.FullName;
+                    Console.WriteLine($"Found teacher: {teacher.FullName}, School: {teacher.SchoolName}");
+                }
+                else
+                {
+                    Console.WriteLine($"Teacher not found in teachers list, trying to fetch by ID: {currentUser.TeacherId}");
+                    // Try to fetch teacher information directly by ID
+                    try
+                    {
+                        var teacherResponse = await Http.GetFromJsonAsync<TeacherInfo>($"api/teachersubject/teacher-info/{currentUser.TeacherId}");
+                        if (teacherResponse != null)
+                        {
+                            selectedTeacherName = teacherResponse.FullName;
+                            Console.WriteLine($"Fetched teacher directly: {teacherResponse.FullName}, School: {teacherResponse.SchoolName}");
+                        }
+                        else
+                        {
+                            selectedTeacherName = currentUser.Username;
+                            Console.WriteLine($"Teacher not found in database, using username: {currentUser.Username}");
+                            errorMessage = $"Teacher information not found for ID: {currentUser.TeacherId}";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error fetching teacher by ID: {ex.Message}");
+                        selectedTeacherName = currentUser.Username;
+                        errorMessage = $"Error loading teacher information: {ex.Message}";
+                    }
+                }
+                
+                await LoadAssignedSubjects();
+                await LoadAvailableSubjects();
+            }
+            else
+            {
+                errorMessage = "Please login as a teacher to access this page";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error auto-selecting teacher: {ex.Message}");
+            errorMessage = "Error loading current teacher information";
+        }
+    }
+
+    private async Task OnTeacherChanged()
+    {
+        // Clear messages
+        successMessage = "";
+        errorMessage = "";
+        
+        if (!string.IsNullOrEmpty(selectedTeacherId))
+        {
+            var teacher = teachers.FirstOrDefault(t => t.TeacherId == selectedTeacherId);
+            selectedTeacherName = teacher?.FullName ?? "";
+            
+            await LoadAssignedSubjects();
+            await LoadAvailableSubjects();
+        }
+        else
+        {
+            selectedTeacherName = "";
+            assignedSubjects.Clear();
+            availableSubjects.Clear();
+        }
+    }
+
+    private async Task OnFilterChanged()
+    {
+        await LoadAvailableSubjects();
+    }
+
+    private async Task LoadAvailableSubjects()
+    {
+        if (string.IsNullOrEmpty(selectedTeacherId)) return;
+
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var queryParams = new List<string>();
+            
+            if (!string.IsNullOrEmpty(selectedGrade))
+                queryParams.Add($"gradeLevel={selectedGrade}");
+            
+            if (!string.IsNullOrEmpty(selectedStrand))
+                queryParams.Add($"strand={Uri.EscapeDataString(selectedStrand)}");
+            
+            if (!string.IsNullOrEmpty(searchTerm))
+                queryParams.Add($"searchTerm={Uri.EscapeDataString(searchTerm)}");
+
+            var queryString = queryParams.Any() ? "?" + string.Join("&", queryParams) : "";
+            var response = await Http.GetFromJsonAsync<List<TeacherSubjectAssignment>>($"api/teachersubject/available{queryString}");
+            
+            if (response != null)
+            {
+                availableSubjects = response;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading available subjects: {ex.Message}");
+            errorMessage = "Error loading available subjects";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadAssignedSubjects()
+    {
+        if (string.IsNullOrEmpty(selectedTeacherId)) return;
+
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<TeacherSubjectAssignment>>($"api/teachersubject/teacher/{selectedTeacherId}");
+            
+            if (response != null)
+            {
+                assignedSubjects = response;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading assigned subjects: {ex.Message}");
+            errorMessage = "Error loading assigned subjects";
+        }
+    }
+
+    private async Task AssignSubject(string subjectId, TimeSpan startTime, TimeSpan endTime)
+    {
+        if (string.IsNullOrEmpty(selectedTeacherId)) return;
+
+        // Show confirmation dialog
+        var subjectName = availableSubjects.FirstOrDefault(s => s.SubjectId == subjectId)?.SubjectName ?? "this subject";
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"Are you sure you want to assign {subjectName} to {selectedTeacherName}?");
+        
+        if (!confirmed) return;
+
+        isAssigning = true;
+        StateHasChanged();
+
+        try
+        {
+            var request = new TeacherSubjectRequest
+            {
+                TeacherId = selectedTeacherId,
+                SubjectId = subjectId,
+                ScheduleStart = startTime,
+                ScheduleEnd = endTime
+            };
+
+            var response = await Http.PostAsJsonAsync("api/teachersubject/assign", request);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                successMessage = "Subject assigned successfully!";
+                errorMessage = "";
+                await LoadAssignedSubjects();
+                await LoadAvailableSubjects();
+                
+                // Auto-hide success message after 1 second
+                _ = Task.Delay(1000).ContinueWith(_ => {
+                    successMessage = "";
+                    InvokeAsync(StateHasChanged);
+                });
+            }
+            else
+            {
+                var errorResponse = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<dynamic>(errorResponse);
+                    errorMessage = $"Error: {errorObj?.GetProperty("message")?.GetString() ?? "Failed to assign subject"}";
+                }
+                catch
+                {
+                    errorMessage = "Error assigning subject. Please try again.";
+                }
+                successMessage = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error assigning subject: {ex.Message}");
+            errorMessage = "Error assigning subject";
+            successMessage = "";
+        }
+        finally
+        {
+            isAssigning = false;
+            StateHasChanged();
+        }
+    }
+
+    private void EditSchedule(TeacherSubjectAssignment subject)
+    {
+        editingSchedule = subject.TeacherSubjectId;
+        editingStartTime = subject.ScheduleStart;
+        editingEndTime = subject.ScheduleEnd;
+        editingStartTimeOnly = TimeOnly.FromTimeSpan(subject.ScheduleStart);
+        editingEndTimeOnly = TimeOnly.FromTimeSpan(subject.ScheduleEnd);
+        StateHasChanged();
+    }
+
+    private void CancelEdit()
+    {
+        editingSchedule = "";
+        StateHasChanged();
+    }
+
+    private async Task SaveSchedule(string teacherSubjectId)
+    {
+        try
+        {
+            // Validate time inputs
+            if (!editingStartTimeOnly.HasValue || !editingEndTimeOnly.HasValue)
+            {
+                errorMessage = "Please enter both start and end times.";
+                return;
+            }
+
+            // Convert TimeOnly back to TimeSpan
+            editingStartTime = editingStartTimeOnly.Value.ToTimeSpan();
+            editingEndTime = editingEndTimeOnly.Value.ToTimeSpan();
+
+            // Validate that end time is after start time
+            if (editingEndTime <= editingStartTime)
+            {
+                errorMessage = "End time must be after start time.";
+                return;
+            }
+
+            isUpdatingSchedule = true;
+            StateHasChanged();
+            
+            var request = new { ScheduleStart = editingStartTime, ScheduleEnd = editingEndTime };
+            var response = await Http.PutAsJsonAsync($"api/teachersubject/schedule/{teacherSubjectId}", request);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                successMessage = "Schedule updated successfully!";
+                errorMessage = "";
+                await LoadAssignedSubjects();
+                CancelEdit();
+                
+                // Auto-hide success message after 1 second
+                _ = Task.Delay(1000).ContinueWith(_ => {
+                    successMessage = "";
+                    InvokeAsync(StateHasChanged);
+                });
+            }
+            else
+            {
+                var errorResponse = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<dynamic>(errorResponse);
+                    errorMessage = $"Error: {errorObj?.GetProperty("message")?.GetString() ?? "Failed to update schedule"}";
+                }
+                catch
+                {
+                    errorMessage = "Error updating schedule. Please try again.";
+                }
+                successMessage = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating schedule: {ex.Message}");
+            errorMessage = "Error updating schedule";
+            successMessage = "";
+        }
+        finally
+        {
+            isUpdatingSchedule = false;
+            StateHasChanged();
+        }
+    }
+
+    private void RemoveSubject(string teacherSubjectId)
+    {
+        var subject = assignedSubjects.FirstOrDefault(s => s.TeacherSubjectId == teacherSubjectId);
+        var subjectName = subject?.SubjectName ?? "this subject";
+        
+        confirmationTitle = "Confirm Removal";
+        confirmationMessage = $"Are you sure you want to remove {subjectName}?";
+        confirmationAction = async () => await ConfirmRemoveSubject(teacherSubjectId);
+        showConfirmationModal = true;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmRemoveSubject(string teacherSubjectId)
+    {
+        try
+        {
+            var response = await Http.DeleteAsync($"api/teachersubject/{teacherSubjectId}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                successMessage = "Subject removed successfully!";
+                errorMessage = "";
+                await LoadAssignedSubjects();
+                await LoadAvailableSubjects();
+                
+                // Auto-hide success message after 1 second
+                _ = Task.Delay(1000).ContinueWith(_ => {
+                    successMessage = "";
+                    InvokeAsync(StateHasChanged);
+                });
+            }
+            else
+            {
+                var errorResponse = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<dynamic>(errorResponse);
+                    errorMessage = $"Error: {errorObj?.GetProperty("message")?.GetString() ?? "Failed to remove subject"}";
+                }
+                catch
+                {
+                    errorMessage = "Error removing subject. Please try again.";
+                }
+                successMessage = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error removing subject: {ex.Message}");
+            errorMessage = "Error removing subject";
+            successMessage = "";
+        }
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        activeTab = tab;
+        StateHasChanged();
+    }
+
+    private async Task ClearFilters()
+    {
+        selectedGrade = "";
+        selectedStrand = "";
+        searchTerm = "";
+        await LoadAvailableSubjects();
+    }
+
+    private void ShowAddSubjectForm()
+    {
+        newSubject = new NewSubjectRequest();
+        newSubjectStartTime = new TimeOnly(7, 30); // Default 7:30 AM
+        newSubjectEndTime = new TimeOnly(8, 30);   // Default 8:30 AM
+        showAddSubjectForm = true;
+        StateHasChanged();
+    }
+
+    private void HideAddSubjectForm()
+    {
+        showAddSubjectForm = false;
+        newSubject = new NewSubjectRequest();
+        newSubjectStartTime = null;
+        newSubjectEndTime = null;
+        StateHasChanged();
+    }
+
+    private void OnStartTimeChanged(ChangeEventArgs e)
+    {
+        if (TimeOnly.TryParse(e.Value?.ToString(), out var time))
+        {
+            newSubjectStartTime = time;
+        }
+        StateHasChanged();
+    }
+
+    private void OnEndTimeChanged(ChangeEventArgs e)
+    {
+        if (TimeOnly.TryParse(e.Value?.ToString(), out var time))
+        {
+            newSubjectEndTime = time;
+        }
+        StateHasChanged();
+    }
+
+    private async Task AddNewSubject()
+    {
+        // Validate time inputs
+        if (!newSubjectStartTime.HasValue || !newSubjectEndTime.HasValue)
+        {
+            errorMessage = "Please enter both start and end times.";
+            return;
+        }
+
+        // Convert TimeOnly to TimeSpan
+        newSubject.ScheduleStart = newSubjectStartTime.Value.ToTimeSpan();
+        newSubject.ScheduleEnd = newSubjectEndTime.Value.ToTimeSpan();
+
+        // Validate that end time is after start time
+        if (newSubject.ScheduleEnd <= newSubject.ScheduleStart)
+        {
+            errorMessage = "End time must be after start time.";
+            return;
+        }
+
+        isAddingSubject = true;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/teachersubject/add-subject", newSubject);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                successMessage = "Subject added successfully!";
+                errorMessage = "";
+                await LoadAvailableSubjects();
+                await LoadAvailableGrades();
+                await LoadAvailableStrands();
+                HideAddSubjectForm();
+                
+                // Auto-hide success message after 1 second
+                _ = Task.Delay(1000).ContinueWith(_ => {
+                    successMessage = "";
+                    InvokeAsync(StateHasChanged);
+                });
+            }
+            else
+            {
+                var errorResponse = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<dynamic>(errorResponse);
+                    errorMessage = $"Error: {errorObj?.GetProperty("message")?.GetString() ?? "Failed to add subject"}";
+                }
+                catch
+                {
+                    errorMessage = "Error adding subject. Please try again.";
+                }
+                successMessage = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error adding subject: {ex.Message}");
+            errorMessage = "Error adding subject";
+            successMessage = "";
+        }
+        finally
+        {
+            isAddingSubject = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ViewSections(TeacherSubjectAssignment subject)
+    {
+        selectedSubjectForSections = subject;
+        showSectionsModal = true;
+        isLoadingSections = true;
+        StateHasChanged();
+
+        try
+        {
+            // Load sections for this subject
+            var response = await Http.GetFromJsonAsync<List<SubjectSectionInfo>>($"api/teachersubject/sections/{subject.SubjectId}");
+            subjectSections = response ?? new List<SubjectSectionInfo>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading sections: {ex.Message}");
+            subjectSections = new List<SubjectSectionInfo>();
+        }
+        finally
+        {
+            isLoadingSections = false;
+            StateHasChanged();
+        }
+    }
+
+    private void HideSectionsModal()
+    {
+        showSectionsModal = false;
+        selectedSubjectForSections = null;
+        subjectSections.Clear();
+        StateHasChanged();
+    }
+
+    private void ViewAttendance(SubjectSectionInfo section)
+    {
+        // TODO: Implement attendance viewing functionality
+        // This could navigate to an attendance page or show another modal
+        Console.WriteLine($"Viewing attendance for section: {section.SectionName}");
+    }
+
+    private async Task RefreshTeacherData()
+    {
+        errorMessage = "";
+        successMessage = "";
+        StateHasChanged();
+        
+        await LoadTeachers();
+        await AutoSelectCurrentTeacher();
+    }
+
+    private async Task ShowSectionSelectionModal(TeacherSubjectAssignment subject)
+    {
+        if (string.IsNullOrEmpty(selectedTeacherId)) return;
+
+        selectedSubjectForAssignment = subject;
+        showSectionSelectionModal = true;
+        isLoadingAvailableSections = true;
+        StateHasChanged();
+
+        try
+        {
+            // Get teacher's school name
+            var teacher = teachers.FirstOrDefault(t => t.TeacherId == selectedTeacherId);
+            if (teacher == null)
+            {
+                Console.WriteLine($"Teacher not found in teachers list. SelectedTeacherId: {selectedTeacherId}");
+                Console.WriteLine($"Available teachers: {string.Join(", ", teachers.Select(t => $"{t.TeacherId}: {t.FullName}"))}");
+                errorMessage = $"Teacher information not found for ID: {selectedTeacherId}. Please refresh the page.";
+                return;
+            }
+
+            // Load available sections for this subject's grade level and teacher's school
+            var response = await Http.GetFromJsonAsync<List<SubjectSectionInfo>>($"api/teachersubject/available-sections/{subject.SubjectId}/{teacher.SchoolName}");
+            availableSectionsForAssignment = response ?? new List<SubjectSectionInfo>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading available sections: {ex.Message}");
+            availableSectionsForAssignment = new List<SubjectSectionInfo>();
+            errorMessage = "Error loading available sections";
+        }
+        finally
+        {
+            isLoadingAvailableSections = false;
+            StateHasChanged();
+        }
+    }
+
+    private void HideSectionSelectionModal()
+    {
+        showSectionSelectionModal = false;
+        selectedSubjectForAssignment = null;
+        availableSectionsForAssignment.Clear();
+        StateHasChanged();
+    }
+
+    private void SelectSection(SubjectSectionInfo section)
+    {
+        if (selectedSubjectForAssignment == null || string.IsNullOrEmpty(selectedTeacherId)) return;
+
+        // Show confirmation modal
+        confirmationTitle = "Confirm Assignment";
+        confirmationMessage = $"Are you sure you want to assign {selectedSubjectForAssignment.SubjectName} to {selectedTeacherName} for section {section.SectionName}?";
+        confirmationAction = async () => await AssignSubjectWithSection(section);
+        showConfirmationModal = true;
+        StateHasChanged();
+    }
+
+    private async Task AssignSubjectWithSection(SubjectSectionInfo section)
+    {
+        if (selectedSubjectForAssignment == null || string.IsNullOrEmpty(selectedTeacherId)) return;
+
+        isAssigning = true;
+        StateHasChanged();
+
+        try
+        {
+            var request = new TeacherSubjectRequest
+            {
+                TeacherId = selectedTeacherId,
+                SubjectId = selectedSubjectForAssignment.SubjectId,
+                ScheduleStart = selectedSubjectForAssignment.ScheduleStart,
+                ScheduleEnd = selectedSubjectForAssignment.ScheduleEnd,
+                Section = section.SectionName
+            };
+
+            var response = await Http.PostAsJsonAsync("api/teachersubject/assign", request);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                successMessage = $"Subject assigned successfully to section {section.SectionName}!";
+                errorMessage = "";
+                await LoadAssignedSubjects();
+                await LoadAvailableSubjects();
+                HideSectionSelectionModal();
+            }
+            else
+            {
+                errorMessage = "Failed to assign subject";
+                successMessage = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error assigning subject: {ex.Message}");
+            errorMessage = "Error assigning subject";
+            successMessage = "";
+        }
+        finally
+        {
+            isAssigning = false;
+            StateHasChanged();
+        }
+    }
+
+    private void HideConfirmationModal()
+    {
+        showConfirmationModal = false;
+        confirmationTitle = "";
+        confirmationMessage = "";
+        confirmationAction = null;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmAction()
+    {
+        if (confirmationAction != null)
+        {
+            await confirmationAction();
+        }
+        HideConfirmationModal();
+    }
+}
+

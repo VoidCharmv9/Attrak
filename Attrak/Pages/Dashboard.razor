@@ -1,0 +1,133 @@
+@page "/dashboard"
+@using Attrak.Services
+@using AttrackSharedClass.Models
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Dashboard - Attrak</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+                <div class="container-fluid">
+                    <a class="navbar-brand fw-bold" href="#">Attrak</a>
+                    <div class="navbar-nav ms-auto">
+                        <div class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-white" href="#" role="button" data-bs-toggle="dropdown">
+                                @if (currentUser != null)
+                                {
+                                    <span>@currentUser.Username (@GetUserTypeText(currentUser.UserType))</span>
+                                }
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" @onclick="HandleLogout">Logout</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Welcome to Attrak Dashboard</h4>
+                </div>
+                <div class="card-body">
+                    @if (currentUser != null)
+                    {
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5>User Information</h5>
+                                <table class="table table-borderless">
+                                    <tr>
+                                        <td><strong>Username:</strong></td>
+                                        <td>@currentUser.Username</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Email:</strong></td>
+                                        <td>@currentUser.Email</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>User Type:</strong></td>
+                                        <td>@GetUserTypeText(currentUser.UserType)</td>
+                                    </tr>
+                                    @if (currentUser.LastLoginAt.HasValue)
+                                    {
+                                        <tr>
+                                            <td><strong>Last Login:</strong></td>
+                                            <td>@currentUser.LastLoginAt.Value.ToString("MMM dd, yyyy HH:mm")</td>
+                                        </tr>
+                                    }
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>Quick Actions</h5>
+                                <div class="d-grid gap-2">
+                                    @if (currentUser.UserType == UserType.Admin)
+                                    {
+                                        <button class="btn btn-outline-primary">Manage Users</button>
+                                        <button class="btn btn-outline-primary">System Settings</button>
+                                        <button class="btn btn-outline-primary">Reports</button>
+                                    }
+                                    else if (currentUser.UserType == UserType.Teacher)
+                                    {
+                                        <button class="btn btn-outline-primary">View Classes</button>
+                                        <button class="btn btn-outline-primary">Take Attendance</button>
+                                        <button class="btn btn-outline-primary">View Reports</button>
+                                    }
+                                    else if (currentUser.UserType == UserType.Student)
+                                    {
+                                        <button class="btn btn-outline-primary">View Attendance</button>
+                                        <button class="btn btn-outline-primary">My Schedule</button>
+                                        <button class="btn btn-outline-primary">Profile</button>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center">
+                            <p>Loading user information...</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private UserInfo? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentUser = await AuthService.GetCurrentUserAsync();
+        
+        if (currentUser == null)
+        {
+            Navigation.NavigateTo("/login");
+        }
+    }
+
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login");
+    }
+
+    private string GetUserTypeText(UserType userType)
+    {
+        return userType switch
+        {
+            UserType.Admin => "Administrator",
+            UserType.Teacher => "Teacher",
+            UserType.Student => "Student",
+            _ => "Unknown"
+        };
+    }
+}

@@ -1,0 +1,38 @@
+﻿@page "/home"
+@using Attrak.Services
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Attrak - Home</PageTitle>
+
+<div class="container-fluid vh-100 d-flex align-items-center justify-content-center bg-light">
+    <div class="row w-100">
+        <div class="col-md-8 col-lg-6 mx-auto text-center">
+            <div class="card shadow">
+                <div class="card-body p-5">
+                    <h1 class="display-4 text-primary fw-bold mb-4">Attrak</h1>
+                    <p class="lead text-muted mb-4">Attendance Management System</p>
+                    <p class="mb-4">A comprehensive solution for managing school attendance, student records, and teacher assignments.</p>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                        <a href="/" class="btn btn-primary btn-lg px-4 me-md-2">Teacher Login</a>
+                        <a href="/student-portal" class="btn btn-success btn-lg px-4 me-md-2">Student Portal</a>
+                        <a href="/dashboard" class="btn btn-outline-primary btn-lg px-4">Dashboard</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if user is already logged in
+        var currentUser = await AuthService.GetCurrentUserAsync();
+        if (currentUser != null)
+        {
+            Navigation.NavigateTo("/dashboard");
+        }
+    }
+}

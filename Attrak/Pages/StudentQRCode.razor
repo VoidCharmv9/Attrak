@@ -1,0 +1,173 @@
+@page "/student-qr/{studentId}"
+@using Attrak.Services
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>Student QR Code - Attrak</PageTitle>
+
+<div class="container-fluid vh-100 d-flex align-items-center justify-content-center bg-light">
+    <div class="row w-100">
+        <div class="col-md-6 col-lg-4 mx-auto">
+            <div class="card shadow">
+                <div class="card-body p-5 text-center">
+                    <h2 class="fw-bold text-primary mb-4">Student QR Code</h2>
+                    
+                    @if (isLoading)
+                    {
+                        <div class="d-flex justify-content-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-muted">Loading QR Code...</p>
+                    }
+                    else if (!string.IsNullOrEmpty(qrCodeData))
+                    {
+                        <div class="mb-4">
+                            <img src="@GetQRCodeDataUrl()" alt="Student QR Code" class="img-fluid" style="max-width: 250px;" />
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <h5 class="alert-heading">Student ID</h5>
+                            <p class="mb-0 font-monospace">@StudentId</p>
+                        </div>
+                        
+                        <p class="text-muted small">
+                            This QR code contains your Student ID and can be used for attendance tracking.
+                        </p>
+                    }
+                    else if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            @errorMessage
+                        </div>
+                    }
+                    
+                    <div class="mt-4">
+                        <button class="btn btn-primary me-2" @onclick="DownloadQRCode" disabled="@(string.IsNullOrEmpty(qrCodeData))">
+                            <i class="bi bi-download"></i> Download QR Code
+                        </button>
+                        <a href="/student-portal" class="btn btn-outline-secondary">
+                            Back to Portal
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string StudentId { get; set; } = string.Empty;
+
+    private string qrCodeData = string.Empty;
+    private string errorMessage = string.Empty;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if user is already logged in
+        var currentUser = await AuthService.GetCurrentUserAsync();
+        if (currentUser == null)
+        {
+            Navigation.NavigateTo("/student-portal");
+            return;
+        }
+
+        await LoadQRCode();
+    }
+
+    private async Task LoadQRCode()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = string.Empty;
+            StateHasChanged();
+
+            var response = await Http.GetAsync($"api/register/student/{StudentId}/qr");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                qrCodeData = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"QR Code Data Length: {qrCodeData?.Length ?? 0}");
+                Console.WriteLine($"QR Code Data Preview: {qrCodeData?.Substring(0, Math.Min(50, qrCodeData?.Length ?? 0))}...");
+                Console.WriteLine($"QR Code Data starts with data: {qrCodeData?.StartsWith("data:")}");
+                Console.WriteLine($"QR Code Data starts with iVBOR: {qrCodeData?.StartsWith("iVBOR")}");
+                
+                if (string.IsNullOrEmpty(qrCodeData))
+                {
+                    errorMessage = "QR code data is empty. Please contact support.";
+                }
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                errorMessage = $"Failed to load QR code: {response.StatusCode} - {errorContent}";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "An error occurred while loading the QR code.";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GetQRCodeDataUrl()
+    {
+        if (string.IsNullOrEmpty(qrCodeData))
+        {
+            return string.Empty;
+        }
+
+        // If the data already includes the data URL prefix, return as is
+        if (qrCodeData.StartsWith("data:"))
+        {
+            return qrCodeData;
+        }
+
+        // Otherwise, add the data URL prefix
+        return $"data:image/png;base64,{qrCodeData}";
+    }
+
+    private async Task DownloadQRCode()
+    {
+        if (string.IsNullOrEmpty(qrCodeData))
+            return;
+
+        try
+        {
+            var bytes = Convert.FromBase64String(qrCodeData);
+            var fileName = $"StudentQR_{StudentId}.png";
+            
+            // Create a download link
+            var dataUrl = GetQRCodeDataUrl();
+            
+            // Use JavaScript to trigger download
+            await JS.InvokeVoidAsync("downloadFile", dataUrl, fileName);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Failed to download QR code.";
+            StateHasChanged();
+        }
+    }
+}
+
+<script>
+    window.downloadFile = (dataUrl, fileName) => {
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+</script>

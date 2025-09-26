@@ -1,0 +1,836 @@
+@page "/qr-scanner"
+@using AttrackSharedClass.Models
+@using Microsoft.Extensions.Http
+@using ScannerMaui.Services
+@using Microsoft.JSInterop
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+@inject AuthService AuthService
+@inject IJSRuntime JSRuntime
+@inject ScannerMaui.Services.QRScannerService QRScannerService
+@implements IDisposable
+
+<PageTitle>QR Scanner - Attrak</PageTitle>
+
+
+<div class="container-fluid vh-100 d-flex flex-column bg-light">
+    <!-- Header -->
+    <div class="row bg-primary text-white p-2">
+        <div class="col-12 text-center">
+            <h5 class="mb-1">Attendance Scanner</h5>
+            @if (currentTeacher != null)
+            {
+                <div class="small">
+                    <span class="text-light">
+                        <i class="fas fa-user"></i> @currentTeacher.FullName
+                    </span>
+                    @if (!string.IsNullOrEmpty(currentTeacher.SchoolName) && currentTeacher.SchoolName != "Loading...")
+                    {
+                        <span class="text-light opacity-75 ms-2">
+                            <i class="fas fa-school"></i> @currentTeacher.SchoolName
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Subject and Section Selection -->
+    <div class="row p-2">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header py-2">
+                    <h6 class="mb-0">Select Subject & Section</h6>
+                </div>
+                <div class="card-body py-2">
+                    @if (isLoadingSubjects)
+                    {
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading subjects...</span>
+                            </div>
+                            <p class="mt-2">Loading your subjects...</p>
+                        </div>
+                    }
+                    else if (teacherSubjects?.Any() == true)
+                    {
+                        <div class="row">
+                            @foreach (var subject in teacherSubjects)
+                            {
+                                <div class="col-md-6 col-lg-4 mb-2">
+                                    <div class="card @(selectedSubject?.TeacherSubjectId == subject.TeacherSubjectId ? "border-primary bg-light" : "")" 
+                                         style="cursor: pointer;" @onclick="() => SelectSubject(subject)">
+                                        <div class="card-body py-2 text-center">
+                                            <h6 class="card-title mb-1">@subject.SubjectName</h6>
+                                            <p class="card-text small text-muted mb-0">
+                                                Grade @subject.GradeLevel
+                                                @if (!string.IsNullOrEmpty(subject.Strand))
+                                                {
+                                                    <span> • @subject.Strand</span>
+                                                }
+                                                @if (!string.IsNullOrEmpty(subject.Section))
+                                                {
+                                                    <br/><span class="badge bg-success">@subject.Section</span>
+                                                }
+                                                <br/>
+                                                <span>@subject.ScheduleStart.ToString(@"hh\:mm") - @subject.ScheduleEnd.ToString(@"hh\:mm")</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning">
+                            <h6>No subjects assigned</h6>
+                            <p class="mb-0">You don't have any subjects assigned yet. Please contact your administrator.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scanner Section -->
+    @if (selectedSubject != null)
+    {
+        <div class="row p-2 flex-grow-1">
+            <div class="col-12">
+                <div class="card h-100">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">Scan Student QR Code</h6>
+                        <div class="d-flex gap-2 align-items-center">
+                            <span class="badge bg-primary">@selectedSubject.SubjectName</span>
+                            @if (!string.IsNullOrEmpty(selectedSubject.Section))
+                            {
+                                <span class="badge bg-success">@selectedSubject.Section</span>
+                            }
+                            <span class="badge bg-info">@selectedSubject.ScheduleStart.ToString(@"hh\:mm") - @selectedSubject.ScheduleEnd.ToString(@"hh\:mm")</span>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelectedSubject">
+                                <i class="fas fa-exchange-alt me-1"></i>Switch Subject
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body d-flex flex-column py-2">
+                        <!-- QR Scanner Component -->
+                        <div class="scanner-container flex-grow-1 bg-light rounded mb-3 d-flex align-items-center justify-content-center" style="min-height: 300px;">
+                            @if (isScanning)
+                            {
+                                <div class="text-center">
+                                    <!-- Scanning Animation -->
+                                    <div class="mb-4">
+                                        <div class="scanner-animation">
+                                            <i class="fas fa-qrcode fa-4x text-success"></i>
+                                            <div class="scanning-line"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Scanning Status -->
+                                    <h5 class="mb-3 text-success">Scanning...</h5>
+                                    
+                                    <!-- Description -->
+                                    <p class="mb-4 text-muted">Point camera at student QR code</p>
+                                    
+                                    <!-- Stop Scanning Button -->
+                                    <button class="btn btn-danger btn-lg px-4 py-2" @onclick="StopScanning">
+                                        <i class="fas fa-stop me-2"></i>Stop Scanning
+                                    </button>
+                                </div>
+                            }
+                            else if (isProcessing)
+                            {
+                                <div class="text-center">
+                                    <!-- Processing Animation -->
+                                    <div class="mb-4">
+                                        <div class="spinner-border text-primary" style="width: 4rem; height: 4rem;" role="status">
+                                            <span class="visually-hidden">Processing...</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Processing Status -->
+                                    <h5 class="mb-3 text-primary">Processing...</h5>
+                                    
+                                    <!-- Description -->
+                                    <p class="mb-4 text-muted">Validating student information</p>
+                                </div>
+                            }
+                            else if (lastScanResult != null)
+                            {
+                                <div class="text-center">
+                                    <!-- Success/Error Feedback -->
+                                    <div class="mb-4">
+                                        @if (lastScanResult.IsValid)
+                                        {
+                                            <i class="fas fa-check-circle fa-4x text-success"></i>
+                                        }
+                                        else
+                                        {
+                                            <i class="fas fa-times-circle fa-4x text-danger"></i>
+                                        }
+                                    </div>
+                                    
+                                    <!-- Result Status -->
+                                    <h5 class="mb-3 @(lastScanResult.IsValid ? "text-success" : "text-danger")">
+                                        @(lastScanResult.IsValid ? "Success!" : "Error")
+                                    </h5>
+                                    
+                                    <!-- Student Info -->
+                                    <p class="mb-2 text-dark">@lastScanResult.StudentName</p>
+                                    <p class="mb-4 text-muted">@lastScanResult.Message</p>
+                                    
+                                    <!-- Continue Scanning Button -->
+                                    <button class="btn btn-primary btn-lg px-4 py-2" @onclick="ContinueScanning">
+                                        <i class="fas fa-qrcode me-2"></i>Continue Scanning
+                                    </button>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="text-center">
+                                    <!-- QR Code Icon -->
+                                    <div class="mb-4">
+                                        <i class="fas fa-qrcode fa-4x text-primary"></i>
+                                    </div>
+                                    
+                                    <!-- Title -->
+                                    <h5 class="mb-3 text-dark">QR Code Scanner</h5>
+                                    
+                                    <!-- Description -->
+                                    <p class="mb-4 text-muted">Start continuous scanning for student attendance</p>
+                                    
+                                    <!-- Start Scanning Button -->
+                                    <button class="btn btn-success btn-lg px-4 py-2" @onclick="StartContinuousScanning">
+                                        <i class="fas fa-play me-2"></i>Start Scanning
+                                    </button>
+                                </div>
+                            }
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Attendance List -->
+    @if (attendanceList?.Any() == true)
+    {
+        <div class="row p-2">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">Today's Attendance (@attendanceList.Count)</h6>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="ExportAttendance">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                    </div>
+                    <div class="card-body py-2">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Student ID</th>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Time</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var attendance in attendanceList.OrderByDescending(a => a.Timestamp))
+                                    {
+                                        <tr class="@(attendance.IsValid ? "table-success" : "table-danger")">
+                                            <td>@attendance.StudentId</td>
+                                            <td>@attendance.StudentName</td>
+                                            <td>
+                                                <span class="badge @(attendance.AttendanceType == "TimeIn" ? "bg-primary" : "bg-warning")">
+                                                    @(attendance.AttendanceType == "TimeIn" ? "Time In" : "Time Out")
+                                                </span>
+                                            </td>
+                                            <td>@attendance.Timestamp.ToString("HH:mm:ss")</td>
+                                            <td>
+                                                @if (attendance.IsValid)
+                                                {
+                                                    <span class="badge @(attendance.Status switch {
+                                                        "Present" => "bg-success",
+                                                        "Late" => "bg-warning",
+                                                        "Absent" => "bg-danger",
+                                                        _ => "bg-success"
+                                                    })">@attendance.Status</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-danger">Not Enrolled</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Messages -->
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <div class="row p-2">
+            <div class="col-12">
+                <div class="alert @(isSuccess ? "alert-success" : "alert-danger") alert-dismissible fade show py-2" role="alert">
+                    <small>@message</small>
+                    <button type="button" class="btn-close btn-close-sm" @onclick="() => message = string.Empty"></button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Toast/Snackbar for Camera Status -->
+    @if (showToast)
+    {
+        <div class="position-fixed top-0 start-50 translate-middle-x" style="z-index: 1050; margin-top: 20px;">
+            <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="toast-header bg-success text-white">
+                    <i class="fas fa-camera me-2"></i>
+                    <strong class="me-auto">Camera</strong>
+                    <small>now</small>
+                </div>
+                <div class="toast-body bg-light">
+                    @toastMessage
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .scanner-animation {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .scanning-line {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, transparent, #28a745, transparent);
+        animation: scanning 2s linear infinite;
+    }
+    
+    @@keyframes scanning {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(4rem); }
+    }
+    
+    .success-flash {
+        animation: successFlash 0.5s ease-in-out;
+    }
+    
+    @@keyframes successFlash {
+        0% { background-color: transparent; }
+        50% { background-color: rgba(40, 167, 69, 0.3); }
+        100% { background-color: transparent; }
+    }
+</style>
+
+<script>
+    window.playBeepSound = function() {
+        try {
+            // Create a simple beep sound using Web Audio API
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // 800Hz beep
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.2);
+        } catch (error) {
+            console.log('Could not play beep sound:', error);
+        }
+    };
+</script>
+
+@code {
+    private List<TeacherSubjectAssignment> teacherSubjects = new();
+    private TeacherSubjectAssignment? selectedSubject;
+    private bool isLoadingSubjects = true;
+    private string message = string.Empty;
+    private bool isSuccess = false;
+    private List<AttendanceRecord> attendanceList = new();
+    private TeacherInfo? currentTeacher;
+    private bool showToast = false;
+    private string toastMessage = string.Empty;
+    private string attendanceType = string.Empty;
+    
+    // Continuous scanning variables
+    private bool isScanning = false;
+    private bool isProcessing = false;
+    private AttendanceRecord? lastScanResult = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCurrentTeacher();
+        await LoadTeacherSubjects();
+        
+        // Subscribe to QR code scanned events
+        QRScannerService.QRCodeScanned += OnQRCodeScanned;
+    }
+    
+    public void Dispose()
+    {
+        // Unsubscribe from events
+        QRScannerService.QRCodeScanned -= OnQRCodeScanned;
+    }
+
+    private async Task LoadCurrentTeacher()
+    {
+        try
+        {
+            var user = await AuthService.GetCurrentUserAsync();
+            
+            // If no user found, redirect to login
+            if (user == null || user.UserType != UserType.Teacher || string.IsNullOrEmpty(user.TeacherId))
+            {
+                Navigation.NavigateTo("/");
+                return;
+            }
+
+            // Load full teacher information from API
+            var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
+            var response = await httpClient.GetFromJsonAsync<TeacherInfo>($"api/teachersubject/teacher-info/{user.TeacherId}");
+            
+            if (response != null)
+            {
+                currentTeacher = response;
+            }
+            else
+            {
+                // Fallback to basic info from user
+                currentTeacher = new TeacherInfo
+                {
+                    TeacherId = user.TeacherId,
+                    FullName = user.Username,
+                    Email = user.Email,
+                    SchoolName = "Unknown School",
+                    SchoolId = "" // Will be set when we get proper teacher info
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"Error loading teacher info: {ex.Message}";
+            isSuccess = false;
+            
+            // Fallback to basic info
+            var user = await AuthService.GetCurrentUserAsync();
+            if (user != null && user.UserType == UserType.Teacher)
+            {
+                currentTeacher = new TeacherInfo
+                {
+                    TeacherId = user.TeacherId ?? "",
+                    FullName = user.Username,
+                    Email = user.Email,
+                    SchoolName = "Error loading school",
+                    SchoolId = ""
+                };
+            }
+        }
+    }
+
+
+
+
+    private async Task LoadTeacherSubjects()
+    {
+        try
+        {
+            isLoadingSubjects = true;
+            StateHasChanged();
+
+            if (currentTeacher == null)
+            {
+                message = "Teacher information not available";
+                isSuccess = false;
+                return;
+            }
+            
+            var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
+            var response = await httpClient.GetFromJsonAsync<List<TeacherSubjectAssignment>>($"api/teachersubject/teacher/{currentTeacher.TeacherId}");
+            
+            teacherSubjects = response ?? new List<TeacherSubjectAssignment>();
+        }
+        catch (Exception ex)
+        {
+            message = $"Error loading subjects: {ex.Message}";
+            isSuccess = false;
+            teacherSubjects = new List<TeacherSubjectAssignment>();
+        }
+        finally
+        {
+            isLoadingSubjects = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SelectSubject(TeacherSubjectAssignment subject)
+    {
+        selectedSubject = subject;
+        attendanceList.Clear();
+        message = string.Empty;
+        StateHasChanged();
+    }
+
+    private void ClearSelectedSubject()
+    {
+        selectedSubject = null;
+        attendanceList.Clear();
+        message = string.Empty;
+        StateHasChanged();
+    }
+
+
+
+
+    private async Task ProcessStudentQRCode(string studentId)
+    {
+        try
+        {
+            if (selectedSubject == null || currentTeacher == null) return;
+
+            // Set processing state
+            isProcessing = true;
+            isScanning = false;
+            StateHasChanged();
+
+            var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
+            var request = new AttendanceRequest
+            {
+                StudentId = studentId,
+                SubjectId = selectedSubject.SubjectId,
+                TeacherId = currentTeacher.TeacherId,
+                Section = selectedSubject.Section ?? "",
+                SchoolId = currentTeacher.SchoolId ?? "",
+                Timestamp = DateTime.UtcNow,
+                AttendanceType = DetermineAttendanceType()
+            };
+
+            var response = await httpClient.PostAsJsonAsync("api/attendance/mark", request);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<AttendanceResponse>();
+                if (result?.Success == true)
+                {
+                    var attendance = new AttendanceRecord
+                    {
+                        StudentId = studentId,
+                        StudentName = result.StudentName ?? "Unknown",
+                        Timestamp = DateTime.Now,
+                        IsValid = result.IsValid,
+                        Status = result.Status,
+                        AttendanceType = result.AttendanceType,
+                        Message = result.Message
+                    };
+                    
+                    attendanceList.Add(attendance);
+                    lastScanResult = attendance;
+                    
+                    // Play success sound and show green feedback
+                    if (result.IsValid)
+                    {
+                        await PlaySuccessSound();
+                        message = GetAttendanceMessage(result);
+                        isSuccess = true;
+                    }
+                    else
+                    {
+                        message = result.Message ?? "Failed to mark attendance";
+                        isSuccess = false;
+                    }
+                }
+                else
+                {
+                    lastScanResult = new AttendanceRecord
+                    {
+                        StudentId = studentId,
+                        StudentName = "Unknown",
+                        Timestamp = DateTime.Now,
+                        IsValid = false,
+                        Status = "Error",
+                        AttendanceType = "Unknown",
+                        Message = result?.Message ?? "Failed to mark attendance"
+                    };
+                    message = result?.Message ?? "Failed to mark attendance";
+                    isSuccess = false;
+                }
+            }
+            else
+            {
+                lastScanResult = new AttendanceRecord
+                {
+                    StudentId = studentId,
+                    StudentName = "Unknown",
+                    Timestamp = DateTime.Now,
+                    IsValid = false,
+                    Status = "Error",
+                    AttendanceType = "Unknown",
+                    Message = "Error marking attendance"
+                };
+                message = "Error marking attendance";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            lastScanResult = new AttendanceRecord
+            {
+                StudentId = studentId,
+                StudentName = "Unknown",
+                Timestamp = DateTime.Now,
+                IsValid = false,
+                Status = "Error",
+                AttendanceType = "Unknown",
+                Message = $"Error: {ex.Message}"
+            };
+            message = $"Error: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task PlaySuccessSound()
+    {
+        try
+        {
+            // Play a success beep sound
+            await JSRuntime.InvokeVoidAsync("playBeepSound");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error playing success sound: {ex.Message}");
+        }
+    }
+
+    private string DetermineAttendanceType()
+    {
+        if (selectedSubject == null) return "TimeIn";
+        
+        var currentTime = DateTime.Now.TimeOfDay;
+        var scheduleStart = selectedSubject.ScheduleStart;
+        var scheduleEnd = selectedSubject.ScheduleEnd;
+        
+        // If current time is within 1 minute of schedule start, it's Time In
+        if (currentTime >= scheduleStart && currentTime <= scheduleStart.Add(TimeSpan.FromMinutes(1)))
+        {
+            return "TimeIn";
+        }
+        // If current time is after schedule end or within 1 minute of it, it's Time Out
+        else if (currentTime >= scheduleEnd.Add(TimeSpan.FromMinutes(-1)))
+        {
+            return "TimeOut";
+        }
+        // If current time is between schedule start and end, determine based on existing attendance
+        else if (currentTime > scheduleStart && currentTime < scheduleEnd)
+        {
+            // Check if student already has Time In for today
+            var today = DateTime.Today;
+            var hasTimeIn = attendanceList.Any(a => a.StudentId == "" && a.AttendanceType == "TimeIn" && a.Timestamp.Date == today);
+            return hasTimeIn ? "TimeOut" : "TimeIn";
+        }
+        
+        return "TimeIn"; // Default
+    }
+
+    private string GetAttendanceMessage(AttendanceResponse result)
+    {
+        if (!result.IsValid)
+        {
+            return result.Message;
+        }
+        
+        var statusText = result.Status switch
+        {
+            "Present" => "Present",
+            "Late" => "Late (after 1 minute)",
+            "Absent" => "Absent",
+            _ => "Present"
+        };
+        
+        var typeText = result.AttendanceType switch
+        {
+            "TimeIn" => "Time In",
+            "TimeOut" => "Time Out",
+            _ => "Attendance"
+        };
+        
+        return $"{typeText} marked: {result.StudentName} - {statusText}";
+    }
+
+
+    private void ExportAttendance()
+    {
+        // TODO: Implement attendance export functionality
+        message = "Export functionality coming soon!";
+        isSuccess = true;
+        StateHasChanged();
+    }
+
+    private async void OnQRCodeScanned(object? sender, string qrCode)
+    {
+        if (!string.IsNullOrEmpty(qrCode))
+        {
+            await ProcessStudentQRCode(qrCode);
+        }
+    }
+
+    private async Task OpenTimeInCamera()
+    {
+        await OpenNativeCamera("TimeIn");
+    }
+
+    private async Task OpenTimeOutCamera()
+    {
+        await OpenNativeCamera("TimeOut");
+    }
+
+    private async Task StartContinuousScanning()
+    {
+        try
+        {
+            isScanning = true;
+            lastScanResult = null;
+            StateHasChanged();
+            
+            // Show toast message
+            toastMessage = "Starting continuous scanning...";
+            showToast = true;
+            StateHasChanged();
+            
+            System.Diagnostics.Debug.WriteLine("Starting continuous QR scanning");
+            
+            // Start the native QR scanner
+            await QRScannerService.OpenNativeQRScanner();
+            
+            // Hide toast after 3 seconds
+            await Task.Delay(3000);
+            showToast = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error starting continuous scanning: {ex.Message}");
+            toastMessage = $"Error starting scanner: {ex.Message}";
+            showToast = true;
+            isScanning = false;
+            StateHasChanged();
+            
+            // Hide error toast after 5 seconds
+            await Task.Delay(5000);
+            showToast = false;
+            StateHasChanged();
+        }
+    }
+
+    private void StopScanning()
+    {
+        isScanning = false;
+        isProcessing = false;
+        lastScanResult = null;
+        StateHasChanged();
+    }
+
+    private async Task ContinueScanning()
+    {
+        lastScanResult = null;
+        await StartContinuousScanning();
+    }
+
+    private async Task OpenNativeCamera(string type)
+    {
+        try
+        {
+            attendanceType = type;
+            
+            // Show toast message based on type
+            var typeText = type == "TimeIn" ? "Time In" : "Time Out";
+            toastMessage = $"Opening camera for {typeText}...";
+            showToast = true;
+            StateHasChanged();
+            
+            System.Diagnostics.Debug.WriteLine($"QRScannerService.OpenNativeQRScanner() called for {type}");
+            
+            // Direct service call - no JavaScript needed
+            await QRScannerService.OpenNativeQRScanner();
+            
+            System.Diagnostics.Debug.WriteLine("QRScannerService.OpenNativeQRScanner() completed");
+            
+            // Hide toast after 5 seconds
+            await Task.Delay(5000);
+            showToast = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error in OpenNativeCamera: {ex.Message}");
+            toastMessage = $"Error opening camera: {ex.Message}";
+            showToast = true;
+            StateHasChanged();
+            
+            // Hide error toast after 5 seconds
+            await Task.Delay(5000);
+            showToast = false;
+            StateHasChanged();
+        }
+    }
+
+
+    public class AttendanceRecord
+    {
+        public string StudentId { get; set; } = string.Empty;
+        public string StudentName { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; }
+        public bool IsValid { get; set; }
+        public string Status { get; set; } = "Present";
+        public string AttendanceType { get; set; } = "TimeIn";
+        public string Message { get; set; } = string.Empty;
+    }
+
+    public class AttendanceRequest
+    {
+        public string StudentId { get; set; } = string.Empty;
+        public string SubjectId { get; set; } = string.Empty;
+        public string TeacherId { get; set; } = string.Empty;
+        public string Section { get; set; } = string.Empty;
+        public string SchoolId { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; }
+        public string AttendanceType { get; set; } = "TimeIn";
+    }
+
+    public class AttendanceResponse
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string StudentName { get; set; } = string.Empty;
+        public bool IsValid { get; set; }
+        public string Status { get; set; } = "Present";
+        public string AttendanceType { get; set; } = "TimeIn";
+    }
+}
