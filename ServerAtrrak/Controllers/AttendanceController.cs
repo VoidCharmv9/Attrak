@@ -71,5 +71,21 @@ namespace ServerAtrrak.Controllers
             }
         }
 
+        [HttpGet("today/{subjectId}/{teacherId}")]
+        public async Task<ActionResult<List<AttendanceRecord>>> GetTodayAttendanceByTeacher(string subjectId, string teacherId)
+        {
+            try
+            {
+                var attendance = await _attendanceService.GetTodayAttendanceByTeacherAsync(subjectId, teacherId);
+                return Ok(attendance);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting today's attendance for subject {SubjectId} and teacher {TeacherId}: {ErrorMessage}", 
+                    subjectId, teacherId, ex.Message);
+                return StatusCode(500, new List<AttendanceRecord>());
+            }
+        }
+
     }
 }

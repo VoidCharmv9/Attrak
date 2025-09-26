@@ -40,51 +40,80 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-header py-2">
-                    <h6 class="mb-0">Select Subject & Section</h6>
+                    <h6 class="mb-0">
+                        <i class="fas fa-book me-2"></i>Select Subject & Section
+                    </h6>
                 </div>
-                <div class="card-body py-2">
+                <div class="card-body py-3">
                     @if (isLoadingSubjects)
                     {
-                        <div class="text-center">
+                        <div class="text-center py-3">
                             <div class="spinner-border text-primary" role="status">
                                 <span class="visually-hidden">Loading subjects...</span>
                             </div>
-                            <p class="mt-2">Loading your subjects...</p>
+                            <p class="mt-2 mb-0">Loading your subjects...</p>
                         </div>
                     }
                     else if (teacherSubjects?.Any() == true)
                     {
-                        <div class="row">
-                            @foreach (var subject in teacherSubjects)
-                            {
-                                <div class="col-md-6 col-lg-4 mb-2">
-                                    <div class="card @(selectedSubject?.TeacherSubjectId == subject.TeacherSubjectId ? "border-primary bg-light" : "")" 
-                                         style="cursor: pointer;" @onclick="() => SelectSubject(subject)">
-                                        <div class="card-body py-2 text-center">
-                                            <h6 class="card-title mb-1">@subject.SubjectName</h6>
-                                            <p class="card-text small text-muted mb-0">
-                                                Grade @subject.GradeLevel
-                                                @if (!string.IsNullOrEmpty(subject.Strand))
-                                                {
-                                                    <span> • @subject.Strand</span>
-                                                }
-                                                @if (!string.IsNullOrEmpty(subject.Section))
-                                                {
-                                                    <br/><span class="badge bg-success">@subject.Section</span>
-                                                }
-                                                <br/>
-                                                <span>@subject.ScheduleStart.ToString(@"hh\:mm") - @subject.ScheduleEnd.ToString(@"hh\:mm")</span>
-                                            </p>
-                                        </div>
+                        <div class="mb-3">
+                            <label for="subjectSelect" class="form-label fw-bold">
+                                <i class="fas fa-graduation-cap me-1"></i>Choose Subject:
+                            </label>
+                            <select id="subjectSelect" class="form-select form-select-lg" @onchange="OnSubjectSelected">
+                                <option value="">-- Select a subject --</option>
+                                @foreach (var subject in teacherSubjects)
+                                {
+                                    <option value="@subject.TeacherSubjectId">
+                                        @subject.SubjectName - Grade @subject.GradeLevel
+                                        @if (!string.IsNullOrEmpty(subject.Strand))
+                                        {
+                                            <text> (@subject.Strand)</text>
+                                        }
+                                        @if (!string.IsNullOrEmpty(subject.Section))
+                                        {
+                                            <text> - Section @subject.Section</text>
+                                        }
+                                        - @subject.ScheduleStart.ToString(@"hh\:mm")-@subject.ScheduleEnd.ToString(@"hh\:mm")
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                        
+                        @if (selectedSubject != null)
+                        {
+                            <div class="alert alert-info mb-0">
+                                <div class="row align-items-center">
+                                    <div class="col">
+                                        <h6 class="mb-1">
+                                            <i class="fas fa-check-circle text-success me-2"></i>@selectedSubject.SubjectName
+                                        </h6>
+                                        <p class="mb-0 small">
+                                            <span class="badge bg-primary me-1">Grade @selectedSubject.GradeLevel</span>
+                                            @if (!string.IsNullOrEmpty(selectedSubject.Strand))
+                                            {
+                                                <span class="badge bg-info me-1">@selectedSubject.Strand</span>
+                                            }
+                                            @if (!string.IsNullOrEmpty(selectedSubject.Section))
+                                            {
+                                                <span class="badge bg-success me-1">Section @selectedSubject.Section</span>
+                                            }
+                                            <span class="badge bg-warning">@selectedSubject.ScheduleStart.ToString(@"hh\:mm")-@selectedSubject.ScheduleEnd.ToString(@"hh\:mm")</span>
+                                        </p>
+                                    </div>
+                                    <div class="col-auto">
+                                        <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelectedSubject">
+                                            <i class="fas fa-times"></i>
+                                        </button>
                                     </div>
                                 </div>
-                            }
-                        </div>
+                            </div>
+                        }
                     }
                     else
                     {
                         <div class="alert alert-warning">
-                            <h6>No subjects assigned</h6>
+                            <h6><i class="fas fa-exclamation-triangle me-2"></i>No subjects assigned</h6>
                             <p class="mb-0">You don't have any subjects assigned yet. Please contact your administrator.</p>
                         </div>
                     }
@@ -99,23 +128,58 @@
         <div class="row p-2 flex-grow-1">
             <div class="col-12">
                 <div class="card h-100">
-                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0">Scan Student QR Code</h6>
-                        <div class="d-flex gap-2 align-items-center">
-                            <span class="badge bg-primary">@selectedSubject.SubjectName</span>
-                            @if (!string.IsNullOrEmpty(selectedSubject.Section))
-                            {
-                                <span class="badge bg-success">@selectedSubject.Section</span>
-                            }
-                            <span class="badge bg-info">@selectedSubject.ScheduleStart.ToString(@"hh\:mm") - @selectedSubject.ScheduleEnd.ToString(@"hh\:mm")</span>
+                    <div class="card-header py-2">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap">
+                            <h6 class="mb-0">
+                                <i class="fas fa-qrcode me-2"></i>Scan Student QR Code
+                            </h6>
                             <button class="btn btn-sm btn-outline-secondary" @onclick="ClearSelectedSubject">
                                 <i class="fas fa-exchange-alt me-1"></i>Switch Subject
                             </button>
                         </div>
+                        <div class="mt-2">
+                            <div class="d-flex flex-wrap gap-1">
+                                <span class="badge bg-primary">@selectedSubject.SubjectName</span>
+                                @if (!string.IsNullOrEmpty(selectedSubject.Section))
+                                {
+                                    <span class="badge bg-success">@selectedSubject.Section</span>
+                                }
+                                <span class="badge bg-info">@selectedSubject.ScheduleStart.ToString(@"hh\:mm")-@selectedSubject.ScheduleEnd.ToString(@"hh\:mm")</span>
+                            </div>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-clock me-1"></i>
+                                    Current Time: @DateTime.Now.ToString("HH:mm:ss")
+                                    @{
+                                        var currentTime = DateTime.Now.TimeOfDay;
+                                        var scheduleStart = selectedSubject.ScheduleStart;
+                                        var earlyStart = scheduleStart.Add(TimeSpan.FromMinutes(-10));
+                                        var lateEnd = scheduleStart.Add(TimeSpan.FromMinutes(10));
+                                        
+                                        if (currentTime < earlyStart)
+                                        {
+                                            <span class="badge bg-secondary ms-2">Too Early</span>
+                                        }
+                                        else if (currentTime >= earlyStart && currentTime <= lateEnd)
+                                        {
+                                            <span class="badge bg-success ms-2">Time In Window</span>
+                                        }
+                                        else if (currentTime > lateEnd && currentTime < selectedSubject.ScheduleEnd)
+                                        {
+                                            <span class="badge bg-warning ms-2">Late Time In</span>
+                                        }
+                                        else if (currentTime >= selectedSubject.ScheduleEnd)
+                                        {
+                                            <span class="badge bg-info ms-2">Time Out Window</span>
+                                        }
+                                    }
+                                </small>
+                            </div>
+                        </div>
                     </div>
                     <div class="card-body d-flex flex-column py-2">
                         <!-- QR Scanner Component -->
-                        <div class="scanner-container flex-grow-1 bg-light rounded mb-3 d-flex align-items-center justify-content-center" style="min-height: 300px;">
+                        <div class="scanner-container flex-grow-1 bg-light rounded mb-3 d-flex align-items-center justify-content-center" style="min-height: 250px;">
                             @if (isScanning)
                             {
                                 <div class="text-center">
@@ -133,8 +197,23 @@
                                     <!-- Description -->
                                     <p class="mb-4 text-muted">Point camera at student QR code</p>
                                     
+                                    <!-- Current Time Window Info -->
+                                    @if (selectedSubject != null)
+                                    {
+                                        <div class="alert alert-info py-2 mb-3">
+                                            <small>
+                                                <i class="fas fa-info-circle me-1"></i>
+                                                <strong>Time Window:</strong><br/>
+                                                Early Time In: @selectedSubject.ScheduleStart.Add(TimeSpan.FromMinutes(-10)).ToString(@"hh\:mm")<br/>
+                                                Schedule Start: @selectedSubject.ScheduleStart.ToString(@"hh\:mm")<br/>
+                                                Late Time In: @selectedSubject.ScheduleStart.Add(TimeSpan.FromMinutes(10)).ToString(@"hh\:mm")<br/>
+                                                Schedule End: @selectedSubject.ScheduleEnd.ToString(@"hh\:mm")
+                                            </small>
+                                        </div>
+                                    }
+                                    
                                     <!-- Stop Scanning Button -->
-                                    <button class="btn btn-danger btn-lg px-4 py-2" @onclick="StopScanning">
+                                    <button class="btn btn-danger btn-lg px-3 py-2 w-100" @onclick="StopScanning">
                                         <i class="fas fa-stop me-2"></i>Stop Scanning
                                     </button>
                                 </div>
@@ -181,7 +260,7 @@
                                     <p class="mb-4 text-muted">@lastScanResult.Message</p>
                                     
                                     <!-- Continue Scanning Button -->
-                                    <button class="btn btn-primary btn-lg px-4 py-2" @onclick="ContinueScanning">
+                                    <button class="btn btn-primary btn-lg px-3 py-2 w-100" @onclick="ContinueScanning">
                                         <i class="fas fa-qrcode me-2"></i>Continue Scanning
                                     </button>
                                 </div>
@@ -201,7 +280,7 @@
                                     <p class="mb-4 text-muted">Start continuous scanning for student attendance</p>
                                     
                                     <!-- Start Scanning Button -->
-                                    <button class="btn btn-success btn-lg px-4 py-2" @onclick="StartContinuousScanning">
+                                    <button class="btn btn-success btn-lg px-3 py-2 w-100" @onclick="StartContinuousScanning">
                                         <i class="fas fa-play me-2"></i>Start Scanning
                                     </button>
                                 </div>
@@ -214,17 +293,36 @@
         </div>
     }
 
+    <!-- Debug Info -->
+    @if (attendanceList?.Any() == true)
+    {
+        <div class="row p-2">
+            <div class="col-12">
+                <div class="alert alert-info py-2">
+                    <small>
+                        <i class="fas fa-info-circle me-1"></i>
+                        Debug: Total records: @attendanceList.Count | Unique records: @GetUniqueAttendanceRecords().Count
+                    </small>
+                </div>
+            </div>
+        </div>
+    }
+
     <!-- Attendance List -->
     @if (attendanceList?.Any() == true)
     {
         <div class="row p-2">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0">Today's Attendance (@attendanceList.Count)</h6>
-                        <button class="btn btn-sm btn-outline-primary" @onclick="ExportAttendance">
-                            <i class="fas fa-download"></i> Export
-                        </button>
+                    <div class="card-header py-2">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap">
+                            <h6 class="mb-0">
+                                <i class="fas fa-list me-2"></i>Today's Attendance (@GetUniqueAttendanceRecords().Count)
+                            </h6>
+                            <button class="btn btn-sm btn-outline-primary" @onclick="ExportAttendance">
+                                <i class="fas fa-download me-1"></i>Export
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body py-2">
                         <div class="table-responsive">
@@ -239,7 +337,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var attendance in attendanceList.OrderByDescending(a => a.Timestamp))
+                                    @foreach (var attendance in GetUniqueAttendanceRecords().OrderByDescending(a => a.Timestamp))
                                     {
                                         <tr class="@(attendance.IsValid ? "table-success" : "table-danger")">
                                             <td>@attendance.StudentId</td>
@@ -337,6 +435,66 @@
         50% { background-color: rgba(40, 167, 69, 0.3); }
         100% { background-color: transparent; }
     }
+    
+    /* Mobile-friendly styles */
+    @@media (max-width: 768px) {
+        .scanner-container {
+            min-height: 200px !important;
+        }
+        
+        .btn-lg {
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+        }
+        
+        .form-select-lg {
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+        }
+        
+        .card-body {
+            padding: 1rem !important;
+        }
+        
+        .card-header {
+            padding: 0.75rem 1rem !important;
+        }
+        
+        .badge {
+            font-size: 0.75rem;
+        }
+        
+        .table-responsive {
+            font-size: 0.875rem;
+        }
+    }
+    
+    /* Extra small devices */
+    @@media (max-width: 576px) {
+        .container-fluid {
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+        
+        .row {
+            margin-left: -0.25rem;
+            margin-right: -0.25rem;
+        }
+        
+        .col-12 {
+            padding-left: 0.25rem;
+            padding-right: 0.25rem;
+        }
+        
+        .scanner-container {
+            min-height: 180px !important;
+        }
+        
+        .btn-lg {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.9rem;
+        }
+    }
 </style>
 
 <script>
@@ -380,6 +538,9 @@
     private bool isScanning = false;
     private bool isProcessing = false;
     private AttendanceRecord? lastScanResult = null;
+    
+    // Timer for updating current time display
+    private Timer? timeUpdateTimer;
 
     protected override async Task OnInitializedAsync()
     {
@@ -388,12 +549,18 @@
         
         // Subscribe to QR code scanned events
         QRScannerService.QRCodeScanned += OnQRCodeScanned;
+        
+        // Start timer to update current time display every second
+        timeUpdateTimer = new Timer(async _ => await InvokeAsync(StateHasChanged), null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
     }
     
     public void Dispose()
     {
         // Unsubscribe from events
         QRScannerService.QRCodeScanned -= OnQRCodeScanned;
+        
+        // Dispose timer
+        timeUpdateTimer?.Dispose();
     }
 
     private async Task LoadCurrentTeacher()
@@ -486,12 +653,33 @@
         }
     }
 
-    private void SelectSubject(TeacherSubjectAssignment subject)
+    private async void SelectSubject(TeacherSubjectAssignment subject)
     {
         selectedSubject = subject;
         attendanceList.Clear();
         message = string.Empty;
+        
+        // Load existing attendance for today
+        await LoadTodayAttendance();
+        
         StateHasChanged();
+    }
+
+    private void OnSubjectSelected(ChangeEventArgs e)
+    {
+        var selectedTeacherSubjectId = e.Value?.ToString();
+        if (!string.IsNullOrEmpty(selectedTeacherSubjectId))
+        {
+            var subject = teacherSubjects.FirstOrDefault(s => s.TeacherSubjectId == selectedTeacherSubjectId);
+            if (subject != null)
+            {
+                SelectSubject(subject);
+            }
+        }
+        else
+        {
+            ClearSelectedSubject();
+        }
     }
 
     private void ClearSelectedSubject()
@@ -502,6 +690,40 @@
         StateHasChanged();
     }
 
+    private async Task LoadTodayAttendance()
+    {
+        try
+        {
+            if (selectedSubject == null || currentTeacher == null) 
+            {
+                System.Diagnostics.Debug.WriteLine("LoadTodayAttendance: selectedSubject or currentTeacher is null");
+                return;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"LoadTodayAttendance: Loading for subject {selectedSubject.SubjectId} and teacher {currentTeacher.TeacherId}");
+            
+            var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
+            var response = await httpClient.GetFromJsonAsync<List<AttendanceRecord>>(
+                $"api/attendance/today/{selectedSubject.SubjectId}/{currentTeacher.TeacherId}");
+            
+            if (response != null)
+            {
+                attendanceList = response;
+                System.Diagnostics.Debug.WriteLine($"LoadTodayAttendance: Loaded {response.Count} records for teacher {currentTeacher.TeacherId}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("LoadTodayAttendance: Response is null");
+                attendanceList = new List<AttendanceRecord>();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading today's attendance: {ex.Message}");
+            attendanceList = new List<AttendanceRecord>();
+        }
+    }
+
 
 
 
@@ -510,6 +732,79 @@
         try
         {
             if (selectedSubject == null || currentTeacher == null) return;
+
+            // First, reload today's attendance to get the latest data
+            await LoadTodayAttendance();
+
+            // Check for existing attendance
+            var today = DateTime.Today;
+            var hasTimeIn = attendanceList.Any(a => 
+                a.StudentId == studentId && 
+                a.AttendanceType == "TimeIn" && 
+                a.Timestamp.Date == today);
+            var hasTimeOut = attendanceList.Any(a => 
+                a.StudentId == studentId && 
+                a.AttendanceType == "TimeOut" && 
+                a.Timestamp.Date == today);
+
+            // Determine attendance type and validate
+            var attendanceType = DetermineAttendanceType(studentId);
+            
+            // Handle special cases
+            if (attendanceType == "AlreadyComplete" || (hasTimeIn && hasTimeOut))
+            {
+                lastScanResult = new AttendanceRecord
+                {
+                    StudentId = studentId,
+                    StudentName = "Student",
+                    Timestamp = DateTime.Now,
+                    IsValid = false,
+                    Status = "Complete",
+                    AttendanceType = "Complete",
+                    Message = "Student already has complete attendance for today"
+                };
+                message = "Student already has complete attendance for today";
+                isSuccess = false;
+                StateHasChanged();
+                return;
+            }
+            
+            if (attendanceType == "TooEarly")
+            {
+                lastScanResult = new AttendanceRecord
+                {
+                    StudentId = studentId,
+                    StudentName = "Student",
+                    Timestamp = DateTime.Now,
+                    IsValid = false,
+                    Status = "Too Early",
+                    AttendanceType = "TimeIn",
+                    Message = "Too early to mark attendance. Please wait for the allowed time window."
+                };
+                message = "Too early to mark attendance. Please wait for the allowed time window.";
+                isSuccess = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Check if trying to Time In when already has Time In
+            if (attendanceType == "TimeIn" && hasTimeIn)
+            {
+                lastScanResult = new AttendanceRecord
+                {
+                    StudentId = studentId,
+                    StudentName = "Student",
+                    Timestamp = DateTime.Now,
+                    IsValid = false,
+                    Status = "Already Time In",
+                    AttendanceType = "TimeIn",
+                    Message = "Student already has Time In for today. Only Time Out is allowed."
+                };
+                message = "Student already has Time In for today. Only Time Out is allowed.";
+                isSuccess = false;
+                StateHasChanged();
+                return;
+            }
 
             // Set processing state
             isProcessing = true;
@@ -525,7 +820,7 @@
                 Section = selectedSubject.Section ?? "",
                 SchoolId = currentTeacher.SchoolId ?? "",
                 Timestamp = DateTime.UtcNow,
-                AttendanceType = DetermineAttendanceType()
+                AttendanceType = attendanceType
             };
 
             var response = await httpClient.PostAsJsonAsync("api/attendance/mark", request);
@@ -535,7 +830,11 @@
                 var result = await response.Content.ReadFromJsonAsync<AttendanceResponse>();
                 if (result?.Success == true)
                 {
-                    var attendance = new AttendanceRecord
+                    // Reload attendance list to get the latest data from server
+                    await LoadTodayAttendance();
+                    
+                    // Create a temporary record for display feedback
+                    var feedbackRecord = new AttendanceRecord
                     {
                         StudentId = studentId,
                         StudentName = result.StudentName ?? "Unknown",
@@ -546,8 +845,7 @@
                         Message = result.Message
                     };
                     
-                    attendanceList.Add(attendance);
-                    lastScanResult = attendance;
+                    lastScanResult = feedbackRecord;
                     
                     // Play success sound and show green feedback
                     if (result.IsValid)
@@ -629,31 +927,56 @@
         }
     }
 
-    private string DetermineAttendanceType()
+    private string DetermineAttendanceType(string studentId)
     {
         if (selectedSubject == null) return "TimeIn";
         
         var currentTime = DateTime.Now.TimeOfDay;
         var scheduleStart = selectedSubject.ScheduleStart;
         var scheduleEnd = selectedSubject.ScheduleEnd;
+        var today = DateTime.Today;
         
-        // If current time is within 1 minute of schedule start, it's Time In
-        if (currentTime >= scheduleStart && currentTime <= scheduleStart.Add(TimeSpan.FromMinutes(1)))
+        // Check if student already has Time In for today
+        var hasTimeIn = attendanceList.Any(a => a.StudentId == studentId && a.AttendanceType == "TimeIn" && a.Timestamp.Date == today);
+        var hasTimeOut = attendanceList.Any(a => a.StudentId == studentId && a.AttendanceType == "TimeOut" && a.Timestamp.Date == today);
+        
+        // If already has both Time In and Time Out, no more attendance allowed
+        if (hasTimeIn && hasTimeOut)
         {
-            return "TimeIn";
+            return "AlreadyComplete";
         }
-        // If current time is after schedule end or within 1 minute of it, it's Time Out
-        else if (currentTime >= scheduleEnd.Add(TimeSpan.FromMinutes(-1)))
+        
+        // If already has Time In, only allow Time Out
+        if (hasTimeIn)
         {
             return "TimeOut";
         }
-        // If current time is between schedule start and end, determine based on existing attendance
-        else if (currentTime > scheduleStart && currentTime < scheduleEnd)
+        
+        // If no Time In yet, determine based on current time
+        // Early Time In: 10 minutes before schedule start
+        var earlyTimeInStart = scheduleStart.Add(TimeSpan.FromMinutes(-10));
+        // Late Time In: 10 minutes after schedule start
+        var lateTimeInEnd = scheduleStart.Add(TimeSpan.FromMinutes(10));
+        
+        // If current time is before early time in window
+        if (currentTime < earlyTimeInStart)
         {
-            // Check if student already has Time In for today
-            var today = DateTime.Today;
-            var hasTimeIn = attendanceList.Any(a => a.StudentId == "" && a.AttendanceType == "TimeIn" && a.Timestamp.Date == today);
-            return hasTimeIn ? "TimeOut" : "TimeIn";
+            return "TooEarly";
+        }
+        // If current time is within early time in window (10 minutes before to 10 minutes after schedule start)
+        else if (currentTime >= earlyTimeInStart && currentTime <= lateTimeInEnd)
+        {
+            return "TimeIn";
+        }
+        // If current time is after late time in window but before schedule end
+        else if (currentTime > lateTimeInEnd && currentTime < scheduleEnd)
+        {
+            return "TimeIn"; // Still allow Time In but will be marked as Late
+        }
+        // If current time is after schedule end, only allow Time Out
+        else if (currentTime >= scheduleEnd)
+        {
+            return "TimeOut";
         }
         
         return "TimeIn"; // Default
@@ -669,7 +992,8 @@
         var statusText = result.Status switch
         {
             "Present" => "Present",
-            "Late" => "Late (after 1 minute)",
+            "Late" => "Late (after 10 minutes)",
+            "Early" => "Early (before schedule)",
             "Absent" => "Absent",
             _ => "Present"
         };
@@ -691,6 +1015,17 @@
         message = "Export functionality coming soon!";
         isSuccess = true;
         StateHasChanged();
+    }
+
+    private List<AttendanceRecord> GetUniqueAttendanceRecords()
+    {
+        // Group by StudentId and AttendanceType, then take the latest record for each combination
+        var uniqueRecords = attendanceList
+            .GroupBy(a => new { a.StudentId, a.AttendanceType })
+            .Select(g => g.OrderByDescending(a => a.Timestamp).First())
+            .ToList();
+        
+        return uniqueRecords;
     }
 
     private async void OnQRCodeScanned(object? sender, string qrCode)

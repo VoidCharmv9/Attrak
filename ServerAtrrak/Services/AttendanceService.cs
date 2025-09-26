@@ -103,6 +103,20 @@ namespace ServerAtrrak.Services
             }
         }
 
+        public async Task<List<AttendanceRecord>> GetTodayAttendanceByTeacherAsync(string subjectId, string teacherId)
+        {
+            try
+            {
+                return await GetAttendanceForSubjectByTeacherAsync(subjectId, teacherId, DateTime.Today);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting today's attendance for subject {SubjectId} and teacher {TeacherId}: {ErrorMessage}", 
+                    subjectId, teacherId, ex.Message);
+                return new List<AttendanceRecord>();
+            }
+        }
+
         public async Task<List<AttendanceRecord>> GetAttendanceForSubjectAsync(string subjectId, DateTime date)
         {
             var attendance = new List<AttendanceRecord>();
@@ -147,6 +161,58 @@ namespace ServerAtrrak.Services
             {
                 _logger.LogError(ex, "Error getting attendance for subject {SubjectId}: {ErrorMessage}", 
                     subjectId, ex.Message);
+            }
+
+            return attendance;
+        }
+
+        public async Task<List<AttendanceRecord>> GetAttendanceForSubjectByTeacherAsync(string subjectId, string teacherId, DateTime date)
+        {
+            var attendance = new List<AttendanceRecord>();
+
+            try
+            {
+                using var connection = new MySqlConnection(_dbConnection.GetConnection());
+                await connection.OpenAsync();
+
+                var query = @"
+                    SELECT a.StudentId, s.FullName, a.Timestamp, a.Status, a.AttendanceType
+                    FROM attendace a
+                    INNER JOIN student s ON a.StudentId = s.StudentId
+                    INNER JOIN teachersubject ts ON a.SubjectId = ts.SubjectId
+                    WHERE a.SubjectId = @SubjectId 
+                    AND ts.TeacherId = @TeacherId
+                    AND DATE(a.Timestamp) = @Date
+                    ORDER BY a.Timestamp DESC";
+
+                using var command = new MySqlCommand(query, connection);
+                command.Parameters.AddWithValue("@SubjectId", subjectId);
+                command.Parameters.AddWithValue("@TeacherId", teacherId);
+                command.Parameters.AddWithValue("@Date", date.Date);
+
+                using var reader = await command.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    attendance.Add(new AttendanceRecord
+                    {
+                        StudentId = reader.GetString(0),
+                        StudentName = reader.GetString(1),
+                        Timestamp = reader.GetDateTime(2),
+                        Status = reader.GetString(3),
+                        IsValid = true,
+                        AttendanceType = reader.GetString(4),
+                        Message = "Attendance recorded"
+                    });
+                }
+
+                _logger.LogInformation("Retrieved {Count} attendance records for subject {SubjectId} and teacher {TeacherId} on {Date}", 
+                    attendance.Count, subjectId, teacherId, date.Date);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting attendance for subject {SubjectId} and teacher {TeacherId} on {Date}: {ErrorMessage}", 
+                    subjectId, teacherId, date, ex.Message);
             }
 
             return attendance;
