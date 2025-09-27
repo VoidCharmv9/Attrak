@@ -114,8 +114,8 @@ namespace ServerAtrrak.Services
 
                 var query = @"
                     SELECT a.StudentId, s.FullName, a.Timestamp, a.Status
-                    FROM Attendance a
-                    INNER JOIN Student s ON a.StudentId = s.StudentId
+                    FROM attendace a
+                    INNER JOIN student s ON a.StudentId = s.StudentId
                     WHERE a.SubjectId = @SubjectId 
                     AND DATE(a.Timestamp) = @Date
                     ORDER BY a.Timestamp DESC";
@@ -157,7 +157,7 @@ namespace ServerAtrrak.Services
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            var query = "SELECT COUNT(*) FROM Student WHERE StudentId = @StudentId AND IsActive = TRUE";
+            var query = "SELECT COUNT(*) FROM student WHERE StudentId = @StudentId AND IsActive = TRUE";
 
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@StudentId", studentId);
@@ -173,7 +173,7 @@ namespace ServerAtrrak.Services
 
             var query = @"
                 SELECT COUNT(*) 
-                FROM Attendance 
+                FROM attendace 
                 WHERE StudentId = @StudentId 
                 AND SubjectId = @SubjectId 
                 AND DATE(AttendanceDate) = @Date
@@ -195,7 +195,7 @@ namespace ServerAtrrak.Services
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            var query = "SELECT FullName FROM Student WHERE StudentId = @StudentId";
+            var query = "SELECT FullName FROM student WHERE StudentId = @StudentId";
 
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@StudentId", studentId);
@@ -213,9 +213,9 @@ namespace ServerAtrrak.Services
 
             var query = @"
                     SELECT s.FullName, s.SchoolId, s.Section, s.GradeLevel, sub.GradeLevel as SubjectGradeLevel
-                    FROM Student s
-                    INNER JOIN StudentSubject ss ON s.StudentId = ss.StudentId
-                    INNER JOIN Subject sub ON ss.SubjectId = sub.SubjectId
+                    FROM student s
+                    INNER JOIN studentsubject ss ON s.StudentId = ss.StudentId
+                    INNER JOIN subject sub ON ss.SubjectId = sub.SubjectId
                     WHERE s.StudentId = @StudentId 
                     AND ss.SubjectId = @SubjectId
                     AND s.SchoolId = @SchoolId";
@@ -297,7 +297,7 @@ namespace ServerAtrrak.Services
 
                 var query = @"
                     SELECT ScheduleStart, ScheduleEnd
-                    FROM Subject
+                    FROM subject
                     WHERE SubjectId = @SubjectId";
 
                 using var command = new MySqlCommand(query, connection);
@@ -346,7 +346,7 @@ namespace ServerAtrrak.Services
 
                 // Check if attendance record already exists for today
                 var existingQuery = @"
-                    SELECT AttendanceId FROM Attendance 
+                    SELECT AttendanceId FROM attendace 
                     WHERE StudentId = @StudentId 
                     AND SubjectId = @SubjectId 
                     AND AttendanceDate = @Date";
@@ -362,7 +362,7 @@ namespace ServerAtrrak.Services
                 {
                     // Update existing record
                     var updateQuery = @"
-                        UPDATE Attendance 
+                        UPDATE attendace 
                         SET @TimeField = @TimeValue, 
                             STATUS = @Status
                         WHERE AttendanceId = @AttendanceId";
@@ -381,7 +381,7 @@ namespace ServerAtrrak.Services
                 {
                     // Insert new record
                     var insertQuery = @"
-                        INSERT INTO Attendance (AttendanceId, StudentId, SubjectId, AttendanceDate, TimeIn, TimeOut, STATUS)
+                        INSERT INTO attendace (AttendanceId, StudentId, SubjectId, AttendanceDate, TimeIn, TimeOut, STATUS)
                         VALUES (@AttendanceId, @StudentId, @SubjectId, @AttendanceDate, @TimeIn, @TimeOut, @Status)";
 
                     using var insertCommand = new MySqlCommand(insertQuery, connection);
