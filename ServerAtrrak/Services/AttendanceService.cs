@@ -211,6 +211,54 @@ namespace ServerAtrrak.Services
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
+            // Debug: Log the parameters
+            _logger.LogInformation("Validating student: StudentId={StudentId}, SubjectId={SubjectId}, SchoolId={SchoolId}", 
+                request.StudentId, request.SubjectId, request.SchoolId);
+            
+            // Debug: First check if student exists with basic info
+            var debugStudentQuery = "SELECT StudentId, FullName, SchoolId, GradeLevel, Section FROM student WHERE StudentId = @StudentId";
+            using var debugStudentCommand = new MySqlCommand(debugStudentQuery, connection);
+            debugStudentCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
+            
+            using var debugStudentReader = await debugStudentCommand.ExecuteReaderAsync();
+            if (await debugStudentReader.ReadAsync())
+            {
+                var debugStudentId = debugStudentReader.GetString(0);
+                var debugStudentName = debugStudentReader.GetString(1);
+                var debugStudentSchoolId = debugStudentReader.GetString(2);
+                var debugStudentGradeLevel = debugStudentReader.GetInt32(3);
+                var debugStudentSection = debugStudentReader.GetString(4);
+                
+                _logger.LogInformation("DEBUG - Student found: ID={StudentId}, Name={StudentName}, SchoolId={SchoolId}, GradeLevel={GradeLevel}, Section={Section}", 
+                    debugStudentId, debugStudentName, debugStudentSchoolId, debugStudentGradeLevel, debugStudentSection);
+            }
+            else
+            {
+                _logger.LogWarning("DEBUG - Student NOT found in database: StudentId={StudentId}", request.StudentId);
+            }
+            debugStudentReader.Close();
+            
+            // Debug: Check subject info
+            var debugSubjectQuery = "SELECT SubjectId, SubjectName, GradeLevel FROM subject WHERE SubjectId = @SubjectId";
+            using var debugSubjectCommand = new MySqlCommand(debugSubjectQuery, connection);
+            debugSubjectCommand.Parameters.AddWithValue("@SubjectId", request.SubjectId);
+            
+            using var debugSubjectReader = await debugSubjectCommand.ExecuteReaderAsync();
+            if (await debugSubjectReader.ReadAsync())
+            {
+                var debugSubjectId = debugSubjectReader.GetString(0);
+                var debugSubjectName = debugSubjectReader.GetString(1);
+                var debugSubjectGradeLevel = debugSubjectReader.GetInt32(2);
+                
+                _logger.LogInformation("DEBUG - Subject found: ID={SubjectId}, Name={SubjectName}, GradeLevel={GradeLevel}", 
+                    debugSubjectId, debugSubjectName, debugSubjectGradeLevel);
+            }
+            else
+            {
+                _logger.LogWarning("DEBUG - Subject NOT found in database: SubjectId={SubjectId}", request.SubjectId);
+            }
+            debugSubjectReader.Close();
+
             var query = @"
                     SELECT s.FullName, s.SchoolId, s.Section, s.GradeLevel, sub.GradeLevel as SubjectGradeLevel
                     FROM student s
@@ -223,6 +271,8 @@ namespace ServerAtrrak.Services
             command.Parameters.AddWithValue("@StudentId", request.StudentId);
             command.Parameters.AddWithValue("@SubjectId", request.SubjectId);
                 command.Parameters.AddWithValue("@SchoolId", request.SchoolId);
+
+            _logger.LogInformation("Executing validation query: {Query}", query);
 
                 using var reader = await command.ExecuteReaderAsync();
                 
@@ -265,6 +315,67 @@ namespace ServerAtrrak.Services
                 }
                 else
                 {
+                    // Debug: Check if student exists at all
+                    _logger.LogWarning("No matching record found. Checking if student exists...");
+                    
+                    var studentExistsQuery = "SELECT FullName, SchoolId, GradeLevel FROM student WHERE StudentId = @StudentId";
+                    using var studentExistsCommand = new MySqlCommand(studentExistsQuery, connection);
+                    studentExistsCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
+                    
+                    using var studentExistsReader = await studentExistsCommand.ExecuteReaderAsync();
+                    if (await studentExistsReader.ReadAsync())
+                    {
+                        var studentName = studentExistsReader.GetString(0);
+                        var studentSchoolId = studentExistsReader.GetString(1);
+                        var studentGradeLevel = studentExistsReader.GetInt32(2);
+                        
+                        _logger.LogWarning("Student exists: Name={StudentName}, SchoolId={StudentSchoolId}, GradeLevel={StudentGradeLevel}", 
+                            studentName, studentSchoolId, studentGradeLevel);
+                        
+                        // Check if subject exists
+                        var subjectExistsQuery = "SELECT SubjectName, GradeLevel FROM subject WHERE SubjectId = @SubjectId";
+                        using var subjectExistsCommand = new MySqlCommand(subjectExistsQuery, connection);
+                        subjectExistsCommand.Parameters.AddWithValue("@SubjectId", request.SubjectId);
+                        
+                        using var subjectExistsReader = await subjectExistsCommand.ExecuteReaderAsync();
+                        if (await subjectExistsReader.ReadAsync())
+                        {
+                            var subjectName = subjectExistsReader.GetString(0);
+                            var subjectGradeLevel = subjectExistsReader.GetInt32(1);
+                            
+                            _logger.LogWarning("Subject exists: Name={SubjectName}, GradeLevel={SubjectGradeLevel}", 
+                                subjectName, subjectGradeLevel);
+                            
+                            if (studentSchoolId != request.SchoolId)
+                            {
+                                return new ValidationResult
+                                {
+                                    IsValid = false,
+                                    Message = $"Student is from different school. Student school: {studentSchoolId}, Requested school: {request.SchoolId}",
+                                    StudentName = studentName
+                                };
+                            }
+                            
+                            if (studentGradeLevel != subjectGradeLevel)
+                            {
+                                return new ValidationResult
+                                {
+                                    IsValid = false,
+                                    Message = $"Grade level mismatch. Student grade: {studentGradeLevel}, Subject grade: {subjectGradeLevel}",
+                                    StudentName = studentName
+                                };
+                            }
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Subject not found: SubjectId={SubjectId}", request.SubjectId);
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Student not found: StudentId={StudentId}", request.StudentId);
+                    }
+                    
                     return new ValidationResult
                     {
                         IsValid = false,
