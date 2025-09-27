@@ -35,7 +35,7 @@ namespace ServerAtrrak.Services
                         ts.Section,
                         TIME_FORMAT(s.ScheduleStart, '%H:%i:%s') as ScheduleStart,
                         TIME_FORMAT(s.ScheduleEnd, '%H:%i:%s') as ScheduleEnd
-                    FROM teachersubject ts
+                    FROM TeacherSubject ts
                     INNER JOIN Subject s ON ts.SubjectId = s.SubjectId
                     WHERE ts.TeacherId = @TeacherId
                     ORDER BY s.GradeLevel, s.Strand, s.ScheduleStart";
@@ -91,10 +91,10 @@ namespace ServerAtrrak.Services
                         s.Strand,
                         TIME_FORMAT(s.ScheduleStart, '%H:%i:%s') as ScheduleStart,
                         TIME_FORMAT(s.ScheduleEnd, '%H:%i:%s') as ScheduleEnd
-                    FROM subject s
+                    FROM Subject s
                     WHERE s.SubjectId NOT IN (
                         SELECT DISTINCT ts.SubjectId 
-                        FROM teachersubject ts
+                        FROM TeacherSubject ts
                     )";
 
                 var parameters = new List<MySqlParameter>();
@@ -168,7 +168,7 @@ namespace ServerAtrrak.Services
                 await connection.OpenAsync();
 
                 // Check if teacher already has this subject
-                var checkQuery = "SELECT COUNT(*) FROM teachersubject WHERE TeacherId = @TeacherId AND SubjectId = @SubjectId";
+                var checkQuery = "SELECT COUNT(*) FROM TeacherSubject WHERE TeacherId = @TeacherId AND SubjectId = @SubjectId";
                 using var checkCommand = new MySqlCommand(checkQuery, connection);
                 checkCommand.Parameters.AddWithValue("@TeacherId", request.TeacherId);
                 checkCommand.Parameters.AddWithValue("@SubjectId", request.SubjectId);
@@ -187,7 +187,7 @@ namespace ServerAtrrak.Services
                 try
                 {
                     var insertQuery = @"
-                        INSERT INTO teachersubject (TeacherSubjectId, TeacherId, SubjectId, Section)
+                        INSERT INTO TeacherSubject (TeacherSubjectId, TeacherId, SubjectId, Section)
                         VALUES (@TeacherSubjectId, @TeacherId, @SubjectId, @Section)";
 
                     using var insertCommand = new MySqlCommand(insertQuery, connection);
@@ -201,11 +201,11 @@ namespace ServerAtrrak.Services
                 }
                 catch (MySqlException ex) when (ex.Number == 1054) // Column doesn't exist
                 {
-                    _logger.LogWarning("Section column doesn't exist, inserting without section. Please add Section column to teachersubject table.");
+                    _logger.LogWarning("Section column doesn't exist, inserting without section. Please add Section column to TeacherSubject table.");
                     
                     // Fallback: insert without Section column
                     var fallbackQuery = @"
-                        INSERT INTO teachersubject (TeacherSubjectId, TeacherId, SubjectId)
+                        INSERT INTO TeacherSubject (TeacherSubjectId, TeacherId, SubjectId)
                         VALUES (@TeacherSubjectId, @TeacherId, @SubjectId)";
 
                     using var fallbackCommand = new MySqlCommand(fallbackQuery, connection);
@@ -221,7 +221,7 @@ namespace ServerAtrrak.Services
                 if (request.ScheduleStart != TimeSpan.Zero && request.ScheduleEnd != TimeSpan.Zero)
                 {
                     var updateQuery = @"
-                        UPDATE subject 
+                        UPDATE Subject 
                         SET ScheduleStart = @ScheduleStart, ScheduleEnd = @ScheduleEnd 
                         WHERE SubjectId = @SubjectId";
 
@@ -260,8 +260,8 @@ namespace ServerAtrrak.Services
                 await connection.OpenAsync();
 
                 var query = @"
-                    UPDATE subject s
-                    INNER JOIN teachersubject ts ON s.SubjectId = ts.SubjectId
+                    UPDATE Subject s
+                    INNER JOIN TeacherSubject ts ON s.SubjectId = ts.SubjectId
                     SET s.ScheduleStart = @ScheduleStart, s.ScheduleEnd = @ScheduleEnd
                     WHERE ts.TeacherSubjectId = @TeacherSubjectId";
 
@@ -308,7 +308,7 @@ namespace ServerAtrrak.Services
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
 
-                var query = "DELETE FROM teachersubject WHERE TeacherSubjectId = @TeacherSubjectId";
+                var query = "DELETE FROM TeacherSubject WHERE TeacherSubjectId = @TeacherSubjectId";
 
                 using var command = new MySqlCommand(query, connection);
                 command.Parameters.AddWithValue("@TeacherSubjectId", teacherSubjectId);
@@ -356,7 +356,7 @@ namespace ServerAtrrak.Services
                 // Check if Subject table is empty and initialize with sample data
                 await InitializeSampleSubjectsIfEmpty(connection);
 
-                var query = "SELECT DISTINCT GradeLevel FROM subject ORDER BY GradeLevel";
+                var query = "SELECT DISTINCT GradeLevel FROM Subject ORDER BY GradeLevel";
 
                 using var command = new MySqlCommand(query, connection);
                 using var reader = await command.ExecuteReaderAsync();
@@ -388,7 +388,7 @@ namespace ServerAtrrak.Services
                 // Check if Subject table is empty and initialize with sample data
                 await InitializeSampleSubjectsIfEmpty(connection);
 
-                var query = "SELECT DISTINCT Strand FROM subject WHERE Strand IS NOT NULL ORDER BY Strand";
+                var query = "SELECT DISTINCT Strand FROM Subject WHERE Strand IS NOT NULL ORDER BY Strand";
 
                 using var command = new MySqlCommand(query, connection);
                 using var reader = await command.ExecuteReaderAsync();
@@ -419,7 +419,7 @@ namespace ServerAtrrak.Services
 
                 var query = @"
                     SELECT t.TeacherId, t.FullName, t.Email, s.SchoolName, s.SchoolId
-                    FROM teacher t
+                    FROM Teacher t
                     INNER JOIN School s ON t.SchoolId = s.SchoolId
                     ORDER BY t.FullName";
 
@@ -457,7 +457,7 @@ namespace ServerAtrrak.Services
 
                 var query = @"
                     SELECT t.TeacherId, t.FullName, t.Email, s.SchoolName, s.SchoolId
-                    FROM teacher t
+                    FROM Teacher t
                     INNER JOIN School s ON t.SchoolId = s.SchoolId
                     INNER JOIN User u ON t.TeacherId = u.TeacherId
                     WHERE t.TeacherId = @TeacherId AND u.UserType = 'Teacher' AND u.IsActive = TRUE";
@@ -500,7 +500,7 @@ namespace ServerAtrrak.Services
                 await connection.OpenAsync();
 
                 // Check if subject with same name and grade already exists
-                var checkQuery = "SELECT COUNT(*) FROM subject WHERE SubjectName = @SubjectName AND GradeLevel = @GradeLevel AND (Strand = @Strand OR (Strand IS NULL AND @Strand IS NULL))";
+                var checkQuery = "SELECT COUNT(*) FROM Subject WHERE SubjectName = @SubjectName AND GradeLevel = @GradeLevel AND (Strand = @Strand OR (Strand IS NULL AND @Strand IS NULL))";
                 using var checkCommand = new MySqlCommand(checkQuery, connection);
                 checkCommand.Parameters.AddWithValue("@SubjectName", request.SubjectName);
                 checkCommand.Parameters.AddWithValue("@GradeLevel", request.GradeLevel);
@@ -528,7 +528,7 @@ namespace ServerAtrrak.Services
 
                 // Insert new subject
                 var insertQuery = @"
-                    INSERT INTO subject (SubjectId, SubjectName, GradeLevel, Strand, ScheduleStart, ScheduleEnd)
+                    INSERT INTO Subject (SubjectId, SubjectName, GradeLevel, Strand, ScheduleStart, ScheduleEnd)
                     VALUES (@SubjectId, @SubjectName, @GradeLevel, @Strand, @ScheduleStart, @ScheduleEnd)";
 
                 using var insertCommand = new MySqlCommand(insertQuery, connection);
@@ -575,7 +575,7 @@ namespace ServerAtrrak.Services
                 // First, get student information to determine grade level and strand
                 var studentQuery = @"
                     SELECT s.GradeLevel, s.Strand 
-                    FROM student s 
+                    FROM Student s 
                     WHERE s.StudentId = @StudentId";
 
                 int studentGradeLevel = 0;
@@ -610,8 +610,8 @@ namespace ServerAtrrak.Services
                         t.FullName as TeacherName,
                         t.TeacherId,
                         1 as HasTeacher
-                    FROM subject s
-                    INNER JOIN teachersubject ts ON s.SubjectId = ts.SubjectId
+                    FROM Subject s
+                    INNER JOIN TeacherSubject ts ON s.SubjectId = ts.SubjectId
                     INNER JOIN Teacher t ON ts.TeacherId = t.TeacherId
                     WHERE s.GradeLevel = @GradeLevel
                     AND (s.Strand = @Strand OR (s.Strand IS NULL AND @Strand IS NULL))
@@ -666,7 +666,7 @@ namespace ServerAtrrak.Services
                         st.GradeLevel,
                         COUNT(st.StudentId) as StudentCount,
                         @SubjectId as SubjectId
-                    FROM student st
+                    FROM Student st
                     INNER JOIN Subject sub ON st.GradeLevel = sub.GradeLevel
                     WHERE sub.SubjectId = @SubjectId
                     GROUP BY st.Section, st.GradeLevel
@@ -712,7 +712,7 @@ namespace ServerAtrrak.Services
                 // First, let's check what schools and students exist
                 var debugQuery = @"
                     SELECT DISTINCT s.SchoolName, st.GradeLevel, st.Section, COUNT(st.StudentId) as StudentCount
-                    FROM student st
+                    FROM Student st
                     INNER JOIN School s ON st.SchoolId = s.SchoolId
                     GROUP BY s.SchoolName, st.GradeLevel, st.Section
                     ORDER BY s.SchoolName, st.GradeLevel, st.Section";
@@ -736,7 +736,7 @@ namespace ServerAtrrak.Services
                         st.GradeLevel,
                         COUNT(st.StudentId) as StudentCount,
                         @SubjectId as SubjectId
-                    FROM student st
+                    FROM Student st
                     INNER JOIN School s ON st.SchoolId = s.SchoolId
                     WHERE s.SchoolName = @SchoolName
                     GROUP BY st.Section, st.GradeLevel
@@ -779,7 +779,7 @@ namespace ServerAtrrak.Services
             try
             {
                 // Check if Subject table has any data
-                var countQuery = "SELECT COUNT(*) FROM subject";
+                var countQuery = "SELECT COUNT(*) FROM Subject";
                 using var countCommand = new MySqlCommand(countQuery, connection);
                 var count = Convert.ToInt32(await countCommand.ExecuteScalarAsync());
 
@@ -843,7 +843,7 @@ namespace ServerAtrrak.Services
                     };
 
                     var insertQuery = @"
-                        INSERT INTO subject (SubjectId, SubjectName, GradeLevel, Strand, ScheduleStart, ScheduleEnd)
+                        INSERT INTO Subject (SubjectId, SubjectName, GradeLevel, Strand, ScheduleStart, ScheduleEnd)
                         VALUES (@SubjectId, @SubjectName, @GradeLevel, @Strand, @ScheduleStart, @ScheduleEnd)";
 
                     foreach (var (subjectName, gradeLevel, strand, scheduleStart, scheduleEnd) in sampleSubjects)

@@ -8,7 +8,6 @@
 @inject AuthService AuthService
 @inject IJSRuntime JSRuntime
 @inject ScannerMaui.Services.QRScannerService QRScannerService
-@implements IDisposable
 
 <PageTitle>QR Scanner - Attrak</PageTitle>
 
@@ -385,15 +384,6 @@
     {
         await LoadCurrentTeacher();
         await LoadTeacherSubjects();
-        
-        // Subscribe to QR code scanned events
-        QRScannerService.QRCodeScanned += OnQRCodeScanned;
-    }
-    
-    public void Dispose()
-    {
-        // Unsubscribe from events
-        QRScannerService.QRCodeScanned -= OnQRCodeScanned;
     }
 
     private async Task LoadCurrentTeacher()
@@ -693,7 +683,7 @@
         StateHasChanged();
     }
 
-    private async void OnQRCodeScanned(object? sender, string qrCode)
+    private async Task OnQRCodeScanned(string qrCode)
     {
         if (!string.IsNullOrEmpty(qrCode))
         {
@@ -726,7 +716,7 @@
             
             System.Diagnostics.Debug.WriteLine("Starting continuous QR scanning");
             
-            // Start the native QR scanner
+            // Start the native QR scanner in continuous mode
             await QRScannerService.OpenNativeQRScanner();
             
             // Hide toast after 3 seconds
@@ -802,35 +792,4 @@
     }
 
 
-    public class AttendanceRecord
-    {
-        public string StudentId { get; set; } = string.Empty;
-        public string StudentName { get; set; } = string.Empty;
-        public DateTime Timestamp { get; set; }
-        public bool IsValid { get; set; }
-        public string Status { get; set; } = "Present";
-        public string AttendanceType { get; set; } = "TimeIn";
-        public string Message { get; set; } = string.Empty;
-    }
-
-    public class AttendanceRequest
-    {
-        public string StudentId { get; set; } = string.Empty;
-        public string SubjectId { get; set; } = string.Empty;
-        public string TeacherId { get; set; } = string.Empty;
-        public string Section { get; set; } = string.Empty;
-        public string SchoolId { get; set; } = string.Empty;
-        public DateTime Timestamp { get; set; }
-        public string AttendanceType { get; set; } = "TimeIn";
-    }
-
-    public class AttendanceResponse
-    {
-        public bool Success { get; set; }
-        public string Message { get; set; } = string.Empty;
-        public string StudentName { get; set; } = string.Empty;
-        public bool IsValid { get; set; }
-        public string Status { get; set; } = "Present";
-        public string AttendanceType { get; set; } = "TimeIn";
-    }
 }

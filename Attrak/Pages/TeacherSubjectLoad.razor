@@ -1050,44 +1050,44 @@
     }
 
     private async Task ConfirmRemoveSubject(string teacherSubjectId)
-    {
-        try
         {
-            var response = await Http.DeleteAsync($"api/teachersubject/{teacherSubjectId}");
-            
-            if (response.IsSuccessStatusCode)
+            try
             {
-                successMessage = "Subject removed successfully!";
-                errorMessage = "";
-                await LoadAssignedSubjects();
-                await LoadAvailableSubjects();
+                var response = await Http.DeleteAsync($"api/teachersubject/{teacherSubjectId}");
                 
+                if (response.IsSuccessStatusCode)
+                {
+                    successMessage = "Subject removed successfully!";
+                    errorMessage = "";
+                    await LoadAssignedSubjects();
+                    await LoadAvailableSubjects();
+                    
                 // Auto-hide success message after 1 second
                 _ = Task.Delay(1000).ContinueWith(_ => {
+                        successMessage = "";
+                        InvokeAsync(StateHasChanged);
+                    });
+                }
+                else
+                {
+                    var errorResponse = await response.Content.ReadAsStringAsync();
+                    try
+                    {
+                        var errorObj = System.Text.Json.JsonSerializer.Deserialize<dynamic>(errorResponse);
+                        errorMessage = $"Error: {errorObj?.GetProperty("message")?.GetString() ?? "Failed to remove subject"}";
+                    }
+                    catch
+                    {
+                        errorMessage = "Error removing subject. Please try again.";
+                    }
                     successMessage = "";
-                    InvokeAsync(StateHasChanged);
-                });
+                }
             }
-            else
+            catch (Exception ex)
             {
-                var errorResponse = await response.Content.ReadAsStringAsync();
-                try
-                {
-                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<dynamic>(errorResponse);
-                    errorMessage = $"Error: {errorObj?.GetProperty("message")?.GetString() ?? "Failed to remove subject"}";
-                }
-                catch
-                {
-                    errorMessage = "Error removing subject. Please try again.";
-                }
+                Console.WriteLine($"Error removing subject: {ex.Message}");
+                errorMessage = "Error removing subject";
                 successMessage = "";
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error removing subject: {ex.Message}");
-            errorMessage = "Error removing subject";
-            successMessage = "";
         }
     }
 

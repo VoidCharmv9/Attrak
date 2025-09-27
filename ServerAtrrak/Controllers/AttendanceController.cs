@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using ServerAtrrak.Services;
+using AttrackSharedClass.Models;
 
 namespace ServerAtrrak.Controllers
 {

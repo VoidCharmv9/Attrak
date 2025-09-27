@@ -22,7 +22,7 @@ namespace ScannerMaui
             builder.Services.AddHttpClient("AttrakAPI", client =>
             {
                 // Replace with your actual API base URL
-                client.BaseAddress = new Uri("http://voidcharm-001-site1.jtempurl.com/");
+                client.BaseAddress = new Uri("https://attrak.onrender.com/");
                 client.DefaultRequestHeaders.Add("Accept", "application/json");
             });
             
@@ -30,6 +30,7 @@ namespace ScannerMaui
             
             // Register services
             builder.Services.AddSingleton<ScannerMaui.Services.AuthService>();
+            builder.Services.AddSingleton<ScannerMaui.Services.QRScannerService>();
 
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();

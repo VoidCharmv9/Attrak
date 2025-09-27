@@ -114,7 +114,7 @@ namespace ServerAtrrak.Services
 
                 var query = @"
                     SELECT a.StudentId, s.FullName, a.Timestamp, a.Status
-                    FROM attendance a
+                    FROM Attendance a
                     INNER JOIN Student s ON a.StudentId = s.StudentId
                     WHERE a.SubjectId = @SubjectId 
                     AND DATE(a.Timestamp) = @Date
@@ -133,7 +133,10 @@ namespace ServerAtrrak.Services
                         StudentId = reader.GetString(0),
                         StudentName = reader.GetString(1),
                         Timestamp = reader.GetDateTime(2),
-                        Status = reader.GetString(3)
+                        Status = reader.GetString(3),
+                        IsValid = true,
+                        AttendanceType = "TimeIn",
+                        Message = "Attendance recorded"
                     });
                 }
 
@@ -154,7 +157,7 @@ namespace ServerAtrrak.Services
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            var query = "SELECT COUNT(*) FROM student WHERE StudentId = @StudentId AND IsActive = TRUE";
+            var query = "SELECT COUNT(*) FROM Student WHERE StudentId = @StudentId AND IsActive = TRUE";
 
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@StudentId", studentId);
@@ -168,19 +171,20 @@ namespace ServerAtrrak.Services
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            // For the current table structure, we just check if there's any attendance record for today
-            // The attendance type is handled by updating the same record
             var query = @"
                 SELECT COUNT(*) 
-                FROM attendance 
+                FROM Attendance 
                 WHERE StudentId = @StudentId 
                 AND SubjectId = @SubjectId 
-                AND DATE(Timestamp) = @Date";
+                AND DATE(AttendanceDate) = @Date
+                AND (@AttendanceType = 'TimeIn' AND TimeIn IS NOT NULL)
+                OR (@AttendanceType = 'TimeOut' AND TimeOut IS NOT NULL)";
 
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@StudentId", studentId);
             command.Parameters.AddWithValue("@SubjectId", subjectId);
             command.Parameters.AddWithValue("@Date", date.Date);
+            command.Parameters.AddWithValue("@AttendanceType", attendanceType);
 
             var count = Convert.ToInt32(await command.ExecuteScalarAsync());
             return count > 0;
@@ -191,7 +195,7 @@ namespace ServerAtrrak.Services
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            var query = "SELECT FullName FROM student WHERE StudentId = @StudentId";
+            var query = "SELECT FullName FROM Student WHERE StudentId = @StudentId";
 
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@StudentId", studentId);
@@ -203,189 +207,76 @@ namespace ServerAtrrak.Services
         private async Task<ValidationResult> ValidateStudentEnrollmentAsync(AttendanceRequest request)
         {
             try
-            {
-                using var connection = new MySqlConnection(_dbConnection.GetConnection());
-                await connection.OpenAsync();
+        {
+            using var connection = new MySqlConnection(_dbConnection.GetConnection());
+            await connection.OpenAsync();
 
-                // Comprehensive validation query that checks all requirements in one go
-                var validationQuery = @"
-                    SELECT 
-                        s.FullName as StudentName,
-                        s.Section as StudentSection,
-                        s.GradeLevel as StudentGradeLevel,
-                        s.Strand as StudentStrand,
-                        sub.SubjectName,
-                        sub.GradeLevel as SubjectGradeLevel,
-                        sub.Strand as SubjectStrand,
-                        ts.Section as TeacherSection,
-                        t.FullName as TeacherName
-                    FROM student s
+            var query = @"
+                    SELECT s.FullName, s.SchoolId, s.Section, s.GradeLevel, sub.GradeLevel as SubjectGradeLevel
+                    FROM Student s
                     INNER JOIN StudentSubject ss ON s.StudentId = ss.StudentId
                     INNER JOIN Subject sub ON ss.SubjectId = sub.SubjectId
-                    INNER JOIN TeacherSubject ts ON sub.SubjectId = ts.SubjectId
-                    INNER JOIN Teacher t ON ts.TeacherId = t.TeacherId
                     WHERE s.StudentId = @StudentId 
-                    AND s.SchoolId = @SchoolId
                     AND ss.SubjectId = @SubjectId
-                    AND ts.TeacherId = @TeacherId
-                    AND ts.SubjectId = @SubjectId";
+                    AND s.SchoolId = @SchoolId";
 
-                using var command = new MySqlCommand(validationQuery, connection);
-                command.Parameters.AddWithValue("@StudentId", request.StudentId);
+            using var command = new MySqlCommand(query, connection);
+            command.Parameters.AddWithValue("@StudentId", request.StudentId);
+            command.Parameters.AddWithValue("@SubjectId", request.SubjectId);
                 command.Parameters.AddWithValue("@SchoolId", request.SchoolId);
-                command.Parameters.AddWithValue("@SubjectId", request.SubjectId);
-                command.Parameters.AddWithValue("@TeacherId", request.TeacherId);
 
                 using var reader = await command.ExecuteReaderAsync();
                 
-                if (!await reader.ReadAsync())
+                if (await reader.ReadAsync())
                 {
-                    // If no record found, check what's missing
-                    reader.Close();
-                    return await GetDetailedValidationError(connection, request);
-                }
+                    var studentName = reader.GetString(0);
+                    var studentSchoolId = reader.GetString(1);
+                    var studentSection = reader.GetString(2);
+                    var studentGradeLevel = reader.GetInt32(3);
+                    var subjectGradeLevel = reader.GetInt32(4);
 
-                var studentName = reader.GetString(0);
-                var studentSection = reader.GetString(1);
-                var studentGradeLevel = reader.GetInt32(2);
-                var studentStrand = reader.IsDBNull(3) ? null : reader.GetString(3);
-                var subjectName = reader.GetString(4);
-                var subjectGradeLevel = reader.GetInt32(5);
-                var subjectStrand = reader.IsDBNull(6) ? null : reader.GetString(6);
-                var teacherSection = reader.IsDBNull(7) ? null : reader.GetString(7);
-                var teacherName = reader.GetString(8);
-
-                reader.Close();
-
-                // Check if student's section matches teacher's assigned section
-                if (!string.IsNullOrEmpty(teacherSection) && studentSection != teacherSection)
-                {
-                    return new ValidationResult
-                    {
-                        IsValid = false,
-                        Message = $"Student is in section '{studentSection}' but teacher {teacherName} is assigned to section '{teacherSection}'",
-                        StudentName = studentName
-                    };
-                }
-
-                // Check if student grade matches subject grade
-                if (studentGradeLevel != subjectGradeLevel)
-                {
-                    return new ValidationResult
-                    {
-                        IsValid = false,
-                        Message = $"Student grade level ({studentGradeLevel}) does not match subject grade level ({subjectGradeLevel})",
-                        StudentName = studentName
-                    };
-                }
-
-                // For Grade 11-12, check if strand matches (if subject has a strand)
-                if (subjectGradeLevel >= 11 && !string.IsNullOrEmpty(subjectStrand))
-                {
-                    if (string.IsNullOrEmpty(studentStrand) || studentStrand != subjectStrand)
+                    // Check if student is in the correct section (if specified)
+                    if (!string.IsNullOrEmpty(request.Section) && studentSection != request.Section)
                     {
                         return new ValidationResult
                         {
                             IsValid = false,
-                            Message = $"Student strand ({studentStrand ?? "None"}) does not match subject strand ({subjectStrand})",
+                            Message = $"Student is not enrolled in section {request.Section}",
                             StudentName = studentName
                         };
                     }
+
+                    // Check if student grade matches subject grade
+                    if (studentGradeLevel != subjectGradeLevel)
+                    {
+                        return new ValidationResult
+                        {
+                            IsValid = false,
+                            Message = $"Student grade level ({studentGradeLevel}) does not match subject grade level ({subjectGradeLevel})",
+                            StudentName = studentName
+                        };
+                    }
+
+                    return new ValidationResult
+                    {
+                        IsValid = true,
+                        Message = "Student validation successful",
+                        StudentName = studentName
+                    };
                 }
-
-                _logger.LogInformation("Student {StudentId} ({StudentName}) validated successfully for subject {SubjectName} with teacher {TeacherName} (Grade {Grade}, Strand {Strand}, Section {Section})", 
-                    request.StudentId, studentName, subjectName, teacherName, subjectGradeLevel, subjectStrand ?? "None", teacherSection ?? "Any");
-
-                return new ValidationResult
+                else
                 {
-                    IsValid = true,
-                    Message = "Student validation successful",
-                    StudentName = studentName
-                };
+                    return new ValidationResult
+                    {
+                        IsValid = false,
+                        Message = "Student not enrolled in this subject or wrong school",
+                        StudentName = "Unknown Student"
+                    };
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error validating student enrollment for student {StudentId}: {ErrorMessage}", 
-                    request.StudentId, ex.Message);
-                
-                return new ValidationResult
-                {
-                    IsValid = false,
-                    Message = "Error validating student enrollment",
-                    StudentName = "Unknown Student"
-                };
-            }
-        }
-
-        private async Task<ValidationResult> GetDetailedValidationError(MySqlConnection connection, AttendanceRequest request)
-        {
-            try
-            {
-                // Check if student exists
-                var studentQuery = "SELECT FullName FROM student WHERE StudentId = @StudentId AND SchoolId = @SchoolId";
-                using var studentCommand = new MySqlCommand(studentQuery, connection);
-                studentCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
-                studentCommand.Parameters.AddWithValue("@SchoolId", request.SchoolId);
-                
-                var studentName = await studentCommand.ExecuteScalarAsync() as string;
-                
-                if (string.IsNullOrEmpty(studentName))
-                {
-                    return new ValidationResult
-                    {
-                        IsValid = false,
-                        Message = "Student not found or not in this school",
-                        StudentName = "Unknown Student"
-                    };
-                }
-
-                // Check if student is enrolled in the subject
-                var enrollmentQuery = "SELECT COUNT(*) FROM studentsubject WHERE StudentId = @StudentId AND SubjectId = @SubjectId";
-                using var enrollmentCommand = new MySqlCommand(enrollmentQuery, connection);
-                enrollmentCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
-                enrollmentCommand.Parameters.AddWithValue("@SubjectId", request.SubjectId);
-                
-                var enrollmentCount = Convert.ToInt32(await enrollmentCommand.ExecuteScalarAsync());
-                
-                if (enrollmentCount == 0)
-                {
-                    return new ValidationResult
-                    {
-                        IsValid = false,
-                        Message = "Student is not enrolled in this subject",
-                        StudentName = studentName
-                    };
-                }
-
-                // Check if teacher is assigned to the subject
-                var teacherQuery = "SELECT COUNT(*) FROM teachersubject WHERE TeacherId = @TeacherId AND SubjectId = @SubjectId";
-                using var teacherCommand = new MySqlCommand(teacherQuery, connection);
-                teacherCommand.Parameters.AddWithValue("@TeacherId", request.TeacherId);
-                teacherCommand.Parameters.AddWithValue("@SubjectId", request.SubjectId);
-                
-                var teacherCount = Convert.ToInt32(await teacherCommand.ExecuteScalarAsync());
-                
-                if (teacherCount == 0)
-                {
-                    return new ValidationResult
-                    {
-                        IsValid = false,
-                        Message = "Teacher is not assigned to this subject",
-                        StudentName = studentName
-                    };
-                }
-
-                // If we get here, there's some other issue
-                return new ValidationResult
-                {
-                    IsValid = false,
-                    Message = "Validation failed - please check student enrollment and teacher assignment",
-                    StudentName = studentName
-                };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting detailed validation error for student {StudentId}: {ErrorMessage}", 
                     request.StudentId, ex.Message);
                 
                 return new ValidationResult
@@ -406,7 +297,7 @@ namespace ServerAtrrak.Services
 
                 var query = @"
                     SELECT ScheduleStart, ScheduleEnd
-                    FROM subject
+                    FROM Subject
                     WHERE SubjectId = @SubjectId";
 
                 using var command = new MySqlCommand(query, connection);
@@ -455,10 +346,10 @@ namespace ServerAtrrak.Services
 
                 // Check if attendance record already exists for today
                 var existingQuery = @"
-                    SELECT AttendanceId FROM attendance 
+                    SELECT AttendanceId FROM Attendance 
                     WHERE StudentId = @StudentId 
                     AND SubjectId = @SubjectId 
-                    AND DATE(Timestamp) = @Date";
+                    AND AttendanceDate = @Date";
 
                 using var existingCommand = new MySqlCommand(existingQuery, connection);
                 existingCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
@@ -469,15 +360,18 @@ namespace ServerAtrrak.Services
 
                 if (existingId != null)
                 {
-                    // Update existing record - update timestamp and status
+                    // Update existing record
                     var updateQuery = @"
-                        UPDATE attendance 
-                        SET Timestamp = @Timestamp, 
-                            Status = @Status
+                        UPDATE Attendance 
+                        SET @TimeField = @TimeValue, 
+                            STATUS = @Status
                         WHERE AttendanceId = @AttendanceId";
 
+                    var timeField = request.AttendanceType == "TimeIn" ? "TimeIn" : "TimeOut";
+                    updateQuery = updateQuery.Replace("@TimeField", timeField);
+
                     using var updateCommand = new MySqlCommand(updateQuery, connection);
-                    updateCommand.Parameters.AddWithValue("@Timestamp", request.Timestamp);
+                    updateCommand.Parameters.AddWithValue("@TimeValue", request.Timestamp.TimeOfDay);
                     updateCommand.Parameters.AddWithValue("@Status", status);
                     updateCommand.Parameters.AddWithValue("@AttendanceId", existingId);
 
@@ -487,15 +381,16 @@ namespace ServerAtrrak.Services
                 {
                     // Insert new record
                     var insertQuery = @"
-                        INSERT INTO attendance (AttendanceId, StudentId, SubjectId, TeacherId, Timestamp, Status)
-                        VALUES (@AttendanceId, @StudentId, @SubjectId, @TeacherId, @Timestamp, @Status)";
+                        INSERT INTO Attendance (AttendanceId, StudentId, SubjectId, AttendanceDate, TimeIn, TimeOut, STATUS)
+                        VALUES (@AttendanceId, @StudentId, @SubjectId, @AttendanceDate, @TimeIn, @TimeOut, @Status)";
 
                     using var insertCommand = new MySqlCommand(insertQuery, connection);
                     insertCommand.Parameters.AddWithValue("@AttendanceId", Guid.NewGuid().ToString());
                     insertCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
                     insertCommand.Parameters.AddWithValue("@SubjectId", request.SubjectId);
-                    insertCommand.Parameters.AddWithValue("@TeacherId", request.TeacherId);
-                    insertCommand.Parameters.AddWithValue("@Timestamp", request.Timestamp);
+                    insertCommand.Parameters.AddWithValue("@AttendanceDate", request.Timestamp.Date);
+                    insertCommand.Parameters.AddWithValue("@TimeIn", request.AttendanceType == "TimeIn" ? request.Timestamp.TimeOfDay : (object)DBNull.Value);
+                    insertCommand.Parameters.AddWithValue("@TimeOut", request.AttendanceType == "TimeOut" ? request.Timestamp.TimeOfDay : (object)DBNull.Value);
                     insertCommand.Parameters.AddWithValue("@Status", status);
 
                     await insertCommand.ExecuteNonQueryAsync();
@@ -510,35 +405,6 @@ namespace ServerAtrrak.Services
         }
     }
 
-    public class AttendanceRequest
-    {
-        public string StudentId { get; set; } = string.Empty;
-        public string SubjectId { get; set; } = string.Empty;
-        public string TeacherId { get; set; } = string.Empty;
-        public string Section { get; set; } = string.Empty;
-        public string SchoolId { get; set; } = string.Empty;
-        public DateTime Timestamp { get; set; }
-        public string AttendanceType { get; set; } = "TimeIn";
-    }
-
-    public class AttendanceResponse
-    {
-        public bool Success { get; set; }
-        public string Message { get; set; } = string.Empty;
-        public string StudentName { get; set; } = string.Empty;
-        public bool IsValid { get; set; }
-        public string Status { get; set; } = "Present";
-        public string AttendanceType { get; set; } = "TimeIn";
-    }
-
-    public class AttendanceRecord
-    {
-        public string StudentId { get; set; } = string.Empty;
-        public string StudentName { get; set; } = string.Empty;
-        public DateTime Timestamp { get; set; }
-        public string Status { get; set; } = "Present";
-        public string AttendanceType { get; set; } = "TimeIn";
-    }
 
     public class ValidationResult
     {
