@@ -8,6 +8,7 @@
 @inject AuthService AuthService
 @inject IJSRuntime JSRuntime
 @inject ScannerMaui.Services.QRScannerService QRScannerService
+@implements IDisposable
 
 <PageTitle>QR Scanner - Attrak</PageTitle>
 
@@ -384,6 +385,15 @@
     {
         await LoadCurrentTeacher();
         await LoadTeacherSubjects();
+        
+        // Subscribe to QR code scanned events
+        QRScannerService.QRCodeScanned += OnQRCodeScanned;
+    }
+    
+    public void Dispose()
+    {
+        // Unsubscribe from events
+        QRScannerService.QRCodeScanned -= OnQRCodeScanned;
     }
 
     private async Task LoadCurrentTeacher()
@@ -683,7 +693,7 @@
         StateHasChanged();
     }
 
-    private async Task OnQRCodeScanned(string qrCode)
+    private async void OnQRCodeScanned(object? sender, string qrCode)
     {
         if (!string.IsNullOrEmpty(qrCode))
         {
@@ -719,6 +729,8 @@
             // Start the native QR scanner in continuous mode
             await QRScannerService.OpenNativeQRScanner();
             
+            System.Diagnostics.Debug.WriteLine("QRScannerService.OpenNativeQRScanner() completed successfully");
+            
             // Hide toast after 3 seconds
             await Task.Delay(3000);
             showToast = false;
@@ -727,6 +739,7 @@
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error starting continuous scanning: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
             toastMessage = $"Error starting scanner: {ex.Message}";
             showToast = true;
             isScanning = false;
@@ -772,8 +785,8 @@
             
             System.Diagnostics.Debug.WriteLine("QRScannerService.OpenNativeQRScanner() completed");
             
-            // Hide toast after 5 seconds
-            await Task.Delay(5000);
+            // Hide toast after 3 seconds
+            await Task.Delay(3000);
             showToast = false;
             StateHasChanged();
         }

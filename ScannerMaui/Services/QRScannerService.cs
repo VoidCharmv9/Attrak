@@ -4,6 +4,8 @@ namespace ScannerMaui.Services
 {
     public class QRScannerService
     {
+        public event EventHandler<string>? QRCodeScanned;
+        
         public async Task OpenNativeQRScanner()
         {
             try
@@ -27,12 +29,11 @@ namespace ScannerMaui.Services
             {
                 System.Diagnostics.Debug.WriteLine($"QR Code Scanned: {qrCode}");
                 
-                // Navigate back to main page
-                await Application.Current!.MainPage!.Navigation.PopAsync();
+                // Notify subscribers about the scanned QR code first
+                QRCodeScanned?.Invoke(this, qrCode);
                 
-                // Here you can process the QR code for attendance
-                // For now, just show a simple message
-                await Application.Current!.MainPage!.DisplayAlert("QR Code Scanned", $"Student ID: {qrCode}", "OK");
+                // Navigate back to main page after processing
+                await Application.Current!.MainPage!.Navigation.PopAsync();
             }
             catch (Exception ex)
             {

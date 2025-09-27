@@ -214,10 +214,9 @@ namespace ServerAtrrak.Services
             var query = @"
                     SELECT s.FullName, s.SchoolId, s.Section, s.GradeLevel, sub.GradeLevel as SubjectGradeLevel
                     FROM student s
-                    INNER JOIN studentsubject ss ON s.StudentId = ss.StudentId
-                    INNER JOIN subject sub ON ss.SubjectId = sub.SubjectId
+                    INNER JOIN subject sub ON s.GradeLevel = sub.GradeLevel
                     WHERE s.StudentId = @StudentId 
-                    AND ss.SubjectId = @SubjectId
+                    AND sub.SubjectId = @SubjectId
                     AND s.SchoolId = @SchoolId";
 
             using var command = new MySqlCommand(query, connection);
@@ -269,7 +268,7 @@ namespace ServerAtrrak.Services
                     return new ValidationResult
                     {
                         IsValid = false,
-                        Message = "Student not enrolled in this subject or wrong school",
+                        Message = "Student not found or grade level does not match subject, or wrong school",
                         StudentName = "Unknown Student"
                     };
                 }
