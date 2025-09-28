@@ -19,61 +19,59 @@ namespace ServerAtrrak.Services
         {
             try
             {
-                _logger.LogInformation("Marking attendance for student {StudentId} in subject {SubjectId} with type {AttendanceType}", 
-                    request.StudentId, request.SubjectId, request.AttendanceType);
+                _logger.LogInformation("Marking attendance for student {StudentId} with type {AttendanceType}", 
+                    request.StudentId, request.AttendanceType);
 
-                // Validate student enrollment and school/section matching
-                var validationResult = await ValidateStudentEnrollmentAsync(request);
-                
-                if (!validationResult.IsValid)
+                // Validate student exists
+                var studentName = await GetStudentNameAsync(request.StudentId);
+                if (string.IsNullOrEmpty(studentName) || studentName == "Unknown Student")
                 {
-                    _logger.LogWarning("Student {StudentId} validation failed: {Message}", request.StudentId, validationResult.Message);
-                    
                     return new AttendanceResponse
                     {
                         Success = true,
-                        Message = validationResult.Message,
+                        Message = "Student not found",
                         IsValid = false,
-                        StudentName = validationResult.StudentName
+                        StudentName = "Unknown Student"
                     };
                 }
 
                 // Check if attendance already marked today for this type
-                var alreadyMarked = await IsAttendanceAlreadyMarkedAsync(request.StudentId, request.SubjectId, request.Timestamp.Date, request.AttendanceType);
+                var alreadyMarked = await IsAttendanceAlreadyMarkedAsync(request.StudentId, request.Timestamp.Date, request.AttendanceType);
                 
                 if (alreadyMarked)
                 {
-                    _logger.LogInformation("Attendance already marked for student {StudentId} in subject {SubjectId} for type {AttendanceType}", 
-                        request.StudentId, request.SubjectId, request.AttendanceType);
+                    _logger.LogInformation("Attendance already marked for student {StudentId} for type {AttendanceType}", 
+                        request.StudentId, request.AttendanceType);
                     
                     return new AttendanceResponse
                     {
                         Success = true,
                         Message = $"{request.AttendanceType} already marked for today",
                         IsValid = true,
-                        StudentName = validationResult.StudentName,
+                        StudentName = studentName,
                         Status = "Present",
                         AttendanceType = request.AttendanceType
                     };
                 }
 
-                // Determine status based on timing
-                var status = await DetermineAttendanceStatusAsync(request);
+                // Determine status and remarks
+                var (status, remarks) = await DetermineAttendanceStatusAndRemarksAsync(request);
 
                 // Mark attendance
-                await InsertAttendanceRecordAsync(request, status);
+                await InsertAttendanceRecordAsync(request, status, remarks);
 
-                _logger.LogInformation("Successfully marked attendance for student {StudentId} in subject {SubjectId} with status {Status}", 
-                    request.StudentId, request.SubjectId, status);
+                _logger.LogInformation("Successfully marked attendance for student {StudentId} with status {Status} and remarks {Remarks}", 
+                    request.StudentId, status, remarks);
 
                 return new AttendanceResponse
                 {
                     Success = true,
                     Message = $"{request.AttendanceType} marked successfully",
                     IsValid = true,
-                    StudentName = validationResult.StudentName,
+                    StudentName = studentName,
                     Status = status,
-                    AttendanceType = request.AttendanceType
+                    AttendanceType = request.AttendanceType,
+                    Remarks = remarks
                 };
             }
             catch (Exception ex)
@@ -89,35 +87,21 @@ namespace ServerAtrrak.Services
             }
         }
 
-        public async Task<List<AttendanceRecord>> GetTodayAttendanceAsync(string subjectId)
+        public async Task<List<AttendanceRecord>> GetTodayAttendanceAsync(string teacherId)
         {
             try
             {
-                return await GetAttendanceForSubjectAsync(subjectId, DateTime.Today);
+                return await GetAttendanceForTeacherAsync(teacherId, DateTime.Today);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting today's attendance for subject {SubjectId}: {ErrorMessage}", 
-                    subjectId, ex.Message);
+                _logger.LogError(ex, "Error getting today's attendance for teacher {TeacherId}: {ErrorMessage}", 
+                    teacherId, ex.Message);
                 return new List<AttendanceRecord>();
             }
         }
 
-        public async Task<List<AttendanceRecord>> GetTodayAttendanceByTeacherAsync(string subjectId, string teacherId)
-        {
-            try
-            {
-                return await GetAttendanceForSubjectByTeacherAsync(subjectId, teacherId, DateTime.Today);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting today's attendance for subject {SubjectId} and teacher {TeacherId}: {ErrorMessage}", 
-                    subjectId, teacherId, ex.Message);
-                return new List<AttendanceRecord>();
-            }
-        }
-
-        public async Task<List<AttendanceRecord>> GetAttendanceForSubjectAsync(string subjectId, DateTime date)
+        public async Task<List<AttendanceRecord>> GetAttendanceForTeacherAsync(string teacherId, DateTime date)
         {
             var attendance = new List<AttendanceRecord>();
 
@@ -127,92 +111,66 @@ namespace ServerAtrrak.Services
                 await connection.OpenAsync();
 
                 var query = @"
-                    SELECT a.StudentId, s.FullName, a.Timestamp, a.Status
-                    FROM attendace a
-                    INNER JOIN student s ON a.StudentId = s.StudentId
-                    WHERE a.SubjectId = @SubjectId 
-                    AND DATE(a.Timestamp) = @Date
-                    ORDER BY a.Timestamp DESC";
+                    SELECT da.StudentId, s.FullName, da.Date, da.TimeIn, da.TimeOut, da.Status, da.Remarks
+                    FROM daily_attendance da
+                    INNER JOIN student s ON da.StudentId = s.StudentId
+                    WHERE da.Date = @Date
+                    ORDER BY da.Date DESC, da.TimeIn DESC";
 
                 using var command = new MySqlCommand(query, connection);
-                command.Parameters.AddWithValue("@SubjectId", subjectId);
                 command.Parameters.AddWithValue("@Date", date.Date);
 
                 using var reader = await command.ExecuteReaderAsync();
 
                 while (await reader.ReadAsync())
                 {
-                    attendance.Add(new AttendanceRecord
+                    var studentId = reader.GetString(0);
+                    var studentName = reader.GetString(1);
+                    var attendanceDate = reader.GetDateTime(2);
+                    var timeIn = reader.IsDBNull(3) ? (TimeSpan?)null : reader.GetTimeSpan(3);
+                    var timeOut = reader.IsDBNull(4) ? (TimeSpan?)null : reader.GetTimeSpan(4);
+                    var status = reader.GetString(5);
+                    var remarks = reader.IsDBNull(6) ? null : reader.GetString(6);
+
+                    // Create separate records for TimeIn and TimeOut if they exist
+                    if (timeIn.HasValue)
                     {
-                        StudentId = reader.GetString(0),
-                        StudentName = reader.GetString(1),
-                        Timestamp = reader.GetDateTime(2),
-                        Status = reader.GetString(3),
-                        IsValid = true,
-                        AttendanceType = "TimeIn",
-                        Message = "Attendance recorded"
-                    });
+                        attendance.Add(new AttendanceRecord
+                        {
+                            StudentId = studentId,
+                            StudentName = studentName,
+                            Timestamp = attendanceDate.Date.Add(timeIn.Value),
+                            Status = status,
+                            IsValid = true,
+                            AttendanceType = "TimeIn",
+                            Message = "Time In recorded",
+                            Remarks = remarks
+                        });
+                    }
+
+                    if (timeOut.HasValue)
+                    {
+                        attendance.Add(new AttendanceRecord
+                        {
+                            StudentId = studentId,
+                            StudentName = studentName,
+                            Timestamp = attendanceDate.Date.Add(timeOut.Value),
+                            Status = status,
+                            IsValid = true,
+                            AttendanceType = "TimeOut",
+                            Message = "Time Out recorded",
+                            Remarks = remarks
+                        });
+                    }
                 }
 
-                _logger.LogInformation("Retrieved {Count} attendance records for subject {SubjectId} on {Date}", 
-                    attendance.Count, subjectId, date.Date);
+                _logger.LogInformation("Retrieved {Count} attendance records for teacher {TeacherId} on {Date}", 
+                    attendance.Count, teacherId, date.Date);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting attendance for subject {SubjectId}: {ErrorMessage}", 
-                    subjectId, ex.Message);
-            }
-
-            return attendance;
-        }
-
-        public async Task<List<AttendanceRecord>> GetAttendanceForSubjectByTeacherAsync(string subjectId, string teacherId, DateTime date)
-        {
-            var attendance = new List<AttendanceRecord>();
-
-            try
-            {
-                using var connection = new MySqlConnection(_dbConnection.GetConnection());
-                await connection.OpenAsync();
-
-                var query = @"
-                    SELECT a.StudentId, s.FullName, a.Timestamp, a.Status, a.AttendanceType
-                    FROM attendace a
-                    INNER JOIN student s ON a.StudentId = s.StudentId
-                    INNER JOIN teachersubject ts ON a.SubjectId = ts.SubjectId
-                    WHERE a.SubjectId = @SubjectId 
-                    AND ts.TeacherId = @TeacherId
-                    AND DATE(a.Timestamp) = @Date
-                    ORDER BY a.Timestamp DESC";
-
-                using var command = new MySqlCommand(query, connection);
-                command.Parameters.AddWithValue("@SubjectId", subjectId);
-                command.Parameters.AddWithValue("@TeacherId", teacherId);
-                command.Parameters.AddWithValue("@Date", date.Date);
-
-                using var reader = await command.ExecuteReaderAsync();
-
-                while (await reader.ReadAsync())
-                {
-                    attendance.Add(new AttendanceRecord
-                    {
-                        StudentId = reader.GetString(0),
-                        StudentName = reader.GetString(1),
-                        Timestamp = reader.GetDateTime(2),
-                        Status = reader.GetString(3),
-                        IsValid = true,
-                        AttendanceType = reader.GetString(4),
-                        Message = "Attendance recorded"
-                    });
-                }
-
-                _logger.LogInformation("Retrieved {Count} attendance records for subject {SubjectId} and teacher {TeacherId} on {Date}", 
-                    attendance.Count, subjectId, teacherId, date.Date);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting attendance for subject {SubjectId} and teacher {TeacherId} on {Date}: {ErrorMessage}", 
-                    subjectId, teacherId, date, ex.Message);
+                _logger.LogError(ex, "Error getting attendance for teacher {TeacherId} on {Date}: {ErrorMessage}", 
+                    teacherId, date, ex.Message);
             }
 
             return attendance;
@@ -232,23 +190,21 @@ namespace ServerAtrrak.Services
             return count > 0;
         }
 
-        private async Task<bool> IsAttendanceAlreadyMarkedAsync(string studentId, string subjectId, DateTime date, string attendanceType)
+        private async Task<bool> IsAttendanceAlreadyMarkedAsync(string studentId, DateTime date, string attendanceType)
         {
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
             var query = @"
                 SELECT COUNT(*) 
-                FROM attendace 
+                FROM daily_attendance 
                 WHERE StudentId = @StudentId 
-                AND SubjectId = @SubjectId 
-                AND DATE(AttendanceDate) = @Date
+                AND Date = @Date
                 AND (@AttendanceType = 'TimeIn' AND TimeIn IS NOT NULL)
                 OR (@AttendanceType = 'TimeOut' AND TimeOut IS NOT NULL)";
 
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@StudentId", studentId);
-            command.Parameters.AddWithValue("@SubjectId", subjectId);
             command.Parameters.AddWithValue("@Date", date.Date);
             command.Parameters.AddWithValue("@AttendanceType", attendanceType);
 
@@ -464,7 +420,65 @@ namespace ServerAtrrak.Services
             }
         }
 
-        private async Task<string> DetermineAttendanceStatusAsync(AttendanceRequest request)
+        private async Task<(string status, string remarks)> DetermineAttendanceStatusAndRemarksAsync(AttendanceRequest request)
+        {
+            try
+            {
+                var currentTime = request.Timestamp.TimeOfDay;
+                var sevenThirtyOne = new TimeSpan(7, 31, 0); // 7:31 AM - late threshold
+                var isLate = currentTime >= sevenThirtyOne;
+
+                if (request.AttendanceType == "TimeIn")
+                {
+                    var status = isLate ? "Late" : "Present";
+                    return (status, "");
+                }
+                else if (request.AttendanceType == "TimeOut")
+                {
+                    // Get Time In record to calculate total hours
+                    var timeInRecord = await GetTimeInRecordAsync(request.StudentId, request.Timestamp.Date);
+                    
+                    if (timeInRecord.HasValue)
+                    {
+                        var timeInHour = timeInRecord.Value.Hours;
+                        var timeOutHour = request.Timestamp.TimeOfDay.Hours;
+                        var timeInWasLate = timeInRecord.Value >= sevenThirtyOne;
+                        
+                        string dayType;
+                        
+                        // Check if it's a whole day (7:30 AM - 4:30 PM range)
+                        if (timeInHour <= 7 && timeOutHour >= 16) // 7:30 AM to 4:30 PM
+                        {
+                            dayType = "Whole Day";
+                        }
+                        else
+                        {
+                            // All other combinations are Half Day
+                            dayType = "Half Day";
+                        }
+                        
+                        var remarks = timeInWasLate ? $"Late - {dayType}" : dayType;
+                        return ("Present", remarks);
+                    }
+                    else
+                    {
+                        // Fallback if no Time In found
+                        var remarks = currentTime < new TimeSpan(12, 0, 0) ? "Half Day" : "Whole Day";
+                        return ("Present", remarks);
+                    }
+                }
+
+                return ("Present", "");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error determining attendance status for student {StudentId}: {ErrorMessage}", 
+                    request.StudentId, ex.Message);
+                return ("Present", "");
+            }
+        }
+
+        private async Task<TimeSpan?> GetTimeInRecordAsync(string studentId, DateTime date)
         {
             try
             {
@@ -472,48 +486,28 @@ namespace ServerAtrrak.Services
                 await connection.OpenAsync();
 
                 var query = @"
-                    SELECT ScheduleStart, ScheduleEnd
-                    FROM subject
-                    WHERE SubjectId = @SubjectId";
+                    SELECT TimeIn 
+                    FROM daily_attendance 
+                    WHERE StudentId = @StudentId 
+                    AND Date = @Date 
+                    AND TimeIn IS NOT NULL";
 
                 using var command = new MySqlCommand(query, connection);
-                command.Parameters.AddWithValue("@SubjectId", request.SubjectId);
+                command.Parameters.AddWithValue("@StudentId", studentId);
+                command.Parameters.AddWithValue("@Date", date.Date);
 
-                using var reader = await command.ExecuteReaderAsync();
-                
-                if (await reader.ReadAsync())
-                {
-                    var scheduleStart = TimeSpan.Parse(reader.GetString(0));
-                    var scheduleEnd = TimeSpan.Parse(reader.GetString(1));
-                    var currentTime = request.Timestamp.TimeOfDay;
-
-                    // For Time In: Check if student is late (more than 1 minute after schedule start)
-                    if (request.AttendanceType == "TimeIn")
-                    {
-                        if (currentTime > scheduleStart.Add(TimeSpan.FromMinutes(1)))
-                        {
-                            return "Late";
-                        }
-                        return "Present";
-                    }
-                    // For Time Out: Always present (early out or late out is okay)
-                    else if (request.AttendanceType == "TimeOut")
-                    {
-                        return "Present";
-                    }
-                }
-
-                return "Present"; // Default
+                var result = await command.ExecuteScalarAsync();
+                return result != null ? (TimeSpan)result : null;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error determining attendance status for student {StudentId}: {ErrorMessage}", 
-                    request.StudentId, ex.Message);
-                return "Present"; // Default to Present on error
+                _logger.LogError(ex, "Error getting Time In record for student {StudentId}: {ErrorMessage}", 
+                    studentId, ex.Message);
+                return null;
             }
         }
 
-        private async Task InsertAttendanceRecordAsync(AttendanceRequest request, string status)
+        private async Task InsertAttendanceRecordAsync(AttendanceRequest request, string status, string remarks)
         {
             try
             {
@@ -522,14 +516,12 @@ namespace ServerAtrrak.Services
 
                 // Check if attendance record already exists for today
                 var existingQuery = @"
-                    SELECT AttendanceId FROM attendace 
+                    SELECT AttendanceId FROM daily_attendance 
                     WHERE StudentId = @StudentId 
-                    AND SubjectId = @SubjectId 
-                    AND AttendanceDate = @Date";
+                    AND Date = @Date";
 
                 using var existingCommand = new MySqlCommand(existingQuery, connection);
                 existingCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
-                existingCommand.Parameters.AddWithValue("@SubjectId", request.SubjectId);
                 existingCommand.Parameters.AddWithValue("@Date", request.Timestamp.Date);
 
                 var existingId = await existingCommand.ExecuteScalarAsync();
@@ -538,9 +530,11 @@ namespace ServerAtrrak.Services
                 {
                     // Update existing record
                     var updateQuery = @"
-                        UPDATE attendace 
+                        UPDATE daily_attendance 
                         SET @TimeField = @TimeValue, 
-                            STATUS = @Status
+                            Status = @Status,
+                            Remarks = @Remarks,
+                            UpdatedAt = @UpdatedAt
                         WHERE AttendanceId = @AttendanceId";
 
                     var timeField = request.AttendanceType == "TimeIn" ? "TimeIn" : "TimeOut";
@@ -549,6 +543,8 @@ namespace ServerAtrrak.Services
                     using var updateCommand = new MySqlCommand(updateQuery, connection);
                     updateCommand.Parameters.AddWithValue("@TimeValue", request.Timestamp.TimeOfDay);
                     updateCommand.Parameters.AddWithValue("@Status", status);
+                    updateCommand.Parameters.AddWithValue("@Remarks", string.IsNullOrEmpty(remarks) ? (object)DBNull.Value : remarks);
+                    updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
                     updateCommand.Parameters.AddWithValue("@AttendanceId", existingId);
 
                     await updateCommand.ExecuteNonQueryAsync();
@@ -557,17 +553,19 @@ namespace ServerAtrrak.Services
                 {
                     // Insert new record
                     var insertQuery = @"
-                        INSERT INTO attendace (AttendanceId, StudentId, SubjectId, AttendanceDate, TimeIn, TimeOut, STATUS)
-                        VALUES (@AttendanceId, @StudentId, @SubjectId, @AttendanceDate, @TimeIn, @TimeOut, @Status)";
+                        INSERT INTO daily_attendance (AttendanceId, StudentId, Date, TimeIn, TimeOut, Status, Remarks, CreatedAt, UpdatedAt)
+                        VALUES (@AttendanceId, @StudentId, @Date, @TimeIn, @TimeOut, @Status, @Remarks, @CreatedAt, @UpdatedAt)";
 
                     using var insertCommand = new MySqlCommand(insertQuery, connection);
                     insertCommand.Parameters.AddWithValue("@AttendanceId", Guid.NewGuid().ToString());
                     insertCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
-                    insertCommand.Parameters.AddWithValue("@SubjectId", request.SubjectId);
-                    insertCommand.Parameters.AddWithValue("@AttendanceDate", request.Timestamp.Date);
+                    insertCommand.Parameters.AddWithValue("@Date", request.Timestamp.Date);
                     insertCommand.Parameters.AddWithValue("@TimeIn", request.AttendanceType == "TimeIn" ? request.Timestamp.TimeOfDay : (object)DBNull.Value);
                     insertCommand.Parameters.AddWithValue("@TimeOut", request.AttendanceType == "TimeOut" ? request.Timestamp.TimeOfDay : (object)DBNull.Value);
                     insertCommand.Parameters.AddWithValue("@Status", status);
+                    insertCommand.Parameters.AddWithValue("@Remarks", string.IsNullOrEmpty(remarks) ? (object)DBNull.Value : remarks);
+                    insertCommand.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
+                    insertCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
 
                     await insertCommand.ExecuteNonQueryAsync();
                 }

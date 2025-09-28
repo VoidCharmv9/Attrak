@@ -2,229 +2,310 @@
 @using AttrackSharedClass.Models
 @using Microsoft.Extensions.Http
 @using ScannerMaui.Services
+
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
 @inject AuthService AuthService
-
 <PageTitle>Teacher Login - Attrak</PageTitle>
 
-<div class="container-fluid vh-100 d-flex align-items-center justify-content-center bg-light">
-    <div class="row w-100">
-        <div class="col-12 col-md-10 col-lg-8 mx-auto">
-            <div class="card shadow">
-                <div class="card-body p-3 p-md-5">
-                    <div class="text-center mb-4">
-                        <div class="mb-3">
-                            <i class="fas fa-graduation-cap fa-3x text-primary"></i>
-                        </div>
-                        <h2 class="fw-bold text-primary">Attrak</h2>
-                        <p class="text-muted">Teacher Portal - Attendance Management System</p>
+<style>
+    .main-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+    .auth-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 20px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        max-width: 500px;
+    }
+
+    .form-control {
+        font-size: 16px;
+        padding: 12px 15px;
+        border: 2px solid #dee2e6;
+        border-radius: 10px;
+        background-color: white;
+        transition: border-color 0.3s ease;
+    }
+
+        .form-control:focus {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+            outline: none;
+        }
+
+    .form-select {
+        font-size: 16px;
+        padding: 12px 15px;
+        border: 2px solid #dee2e6;
+        border-radius: 10px;
+        background-color: white;
+        transition: border-color 0.3s ease;
+    }
+
+        .form-select:focus {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+            outline: none;
+        }
+
+    .btn-primary, .btn-success {
+        padding: 12px 30px;
+        font-size: 16px;
+        border-radius: 10px;
+        border: none;
+        transition: all 0.3s ease;
+    }
+
+        .btn-primary:hover {
+            background-color: #0b5ed7;
+            transform: translateY(-2px);
+        }
+
+        .btn-success:hover {
+            background-color: #198754;
+            transform: translateY(-2px);
+        }
+
+    /* Mobile responsive */
+    @@media (max-width: 768px) {
+        .main-container
+
+    {
+        padding: 10px;
+    }
+
+    .auth-card {
+        margin: 10px;
+    }
+
+    .form-control, .form-select {
+        font-size: 16px;
+        min-height: 44px;
+    }
+
+    }</style>
+
+<!-- Main Content Container -->
+<div class="main-container">
+    <div class="auth-card p-4">
+        <div class="text-center mb-4">
+            <div class="mb-3">
+                <i class="fas fa-graduation-cap fa-3x text-primary"></i>
+            </div>
+            <h2 class="fw-bold text-primary">Attrak</h2>
+            <p class="text-muted">Teacher Portal - Attendance Management System</p>
+        </div>
+
+        <!-- Tab Navigation -->
+        <ul class="nav nav-tabs nav-fill mb-4" id="authTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(isLoginTab ? "active" : "")" id="login-tab" type="button" @onclick="() => SwitchTab(true)">
+                    <i class="fas fa-sign-in-alt me-2"></i>Login
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(!isLoginTab ? "active" : "")" id="register-tab" type="button" @onclick="() => SwitchTab(false)">
+                    <i class="fas fa-user-plus me-2"></i>Register
+                </button>
+            </li>
+        </ul>
+
+        <!-- Login Form -->
+        @if (isLoginTab)
+        {
+            <EditForm Model="loginRequest" OnValidSubmit="HandleLogin">
+                <DataAnnotationsValidator />
+
+                <div class="mb-3">
+                    <label for="username" class="form-label">
+                        <i class="fas fa-user me-2"></i>Username
+                    </label>
+                    <InputText id="username" class="form-control" @bind-Value="loginRequest.Username" placeholder="Enter your username" />
+                    <ValidationMessage For="@(() => loginRequest.Username)" class="text-danger" />
+                </div>
+
+                <div class="mb-4">
+                    <label for="password" class="form-label">
+                        <i class="fas fa-lock me-2"></i>Password
+                    </label>
+                    <InputText id="password" type="password" class="form-control" @bind-Value="loginRequest.Password" placeholder="Enter your password" />
+                    <ValidationMessage For="@(() => loginRequest.Password)" class="text-danger" />
+                </div>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger" role="alert">
+                        @errorMessage
                     </div>
+                }
 
-                    <!-- Tab Navigation -->
-                    <ul class="nav nav-tabs nav-fill mb-4" id="authTabs" role="tablist">
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link @(isLoginTab ? "active" : "")" id="login-tab" type="button" @onclick="() => SwitchTab(true)">
-                                <i class="fas fa-sign-in-alt me-2"></i>Login
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link @(!isLoginTab ? "active" : "")" id="register-tab" type="button" @onclick="() => SwitchTab(false)">
-                                <i class="fas fa-user-plus me-2"></i>Register
-                            </button>
-                        </li>
-                    </ul>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            <span>Logging in...</span>
+                        }
+                        else
+                        {
+                            <i class="fas fa-sign-in-alt me-2"></i>
+                            <span>Login</span>
+                        }
+                    </button>
+                </div>
+            </EditForm>
+        }
 
-                    <!-- Login Form -->
-                    @if (isLoginTab)
+        <!-- Registration Form -->
+        @if (!isLoginTab)
+        {
+            <EditForm Model="registerRequest" OnValidSubmit="HandleRegister">
+                <DataAnnotationsValidator />
+
+                <div class="row">
+                    <div class="col-12 col-md-6 mb-3">
+                        <label for="reg-username" class="form-label">
+                            <i class="fas fa-user me-2"></i>Username
+                        </label>
+                        <InputText id="reg-username" class="form-control" @bind-Value="registerRequest.Username" placeholder="Enter username" />
+                        <ValidationMessage For="@(() => registerRequest.Username)" class="text-danger" />
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                        <label for="reg-email" class="form-label">
+                            <i class="fas fa-envelope me-2"></i>Email
+                        </label>
+                        <InputText id="reg-email" type="email" class="form-control" @bind-Value="registerRequest.Email" placeholder="Enter email" />
+                        <ValidationMessage For="@(() => registerRequest.Email)" class="text-danger" />
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12 col-md-6 mb-3">
+                        <label for="reg-password" class="form-label">
+                            <i class="fas fa-lock me-2"></i>Password
+                        </label>
+                        <InputText id="reg-password" type="password" class="form-control" @bind-Value="registerRequest.Password" placeholder="Enter password" />
+                        <ValidationMessage For="@(() => registerRequest.Password)" class="text-danger" />
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                        <label for="reg-fullname" class="form-label">
+                            <i class="fas fa-id-card me-2"></i>Full Name
+                        </label>
+                        <InputText id="reg-fullname" class="form-control text-uppercase" @bind-Value="registerRequest.FullName" placeholder="Enter full name" />
+                        <ValidationMessage For="@(() => registerRequest.FullName)" class="text-danger" />
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="reg-region" class="form-label">
+                        <i class="fas fa-map-marker-alt me-2"></i>Region
+                    </label>
+                    <InputSelect id="reg-region" class="form-select" @bind-Value="registerRequest.Region" @bind-Value:after="OnRegionChanged">
+                        <option value="">Select Region</option>
+                        @foreach (var region in regions)
+                        {
+                            <option value="@region">@region</option>
+                        }
+                        <option value="manual">+ Add New Region</option>
+                    </InputSelect>
+                    @if (registerRequest.Region == "manual")
                     {
-                        <EditForm Model="loginRequest" OnValidSubmit="HandleLogin">
-                            <DataAnnotationsValidator />
-                            
-                            <div class="mb-3">
-                                <label for="username" class="form-label">
-                                    <i class="fas fa-user me-2"></i>Username
-                                </label>
-                                <InputText id="username" class="form-control form-control-lg" @bind-Value="loginRequest.Username" @oninput="OnLoginUsernameChanged" placeholder="Enter your username" />
-                                <ValidationMessage For="@(() => loginRequest.Username)" class="text-danger" />
-                            </div>
-
-                            <div class="mb-4">
-                                <label for="password" class="form-label">
-                                    <i class="fas fa-lock me-2"></i>Password
-                                </label>
-                                <InputText id="password" type="password" class="form-control form-control-lg" @bind-Value="loginRequest.Password" @oninput="OnLoginPasswordChanged" placeholder="Enter your password" />
-                                <ValidationMessage For="@(() => loginRequest.Password)" class="text-danger" />
-                            </div>
-
-                            @if (!string.IsNullOrEmpty(errorMessage))
-                            {
-                                <div class="alert alert-danger" role="alert">
-                                    @errorMessage
-                                </div>
-                            }
-
-                            <div class="d-grid">
-                                <button type="submit" class="btn btn-primary btn-lg py-3" disabled="@isLoading">
-                                    @if (isLoading)
-                                    {
-                                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                        <span>Logging in...</span>
-                                    }
-                                    else
-                                    {
-                                        <i class="fas fa-sign-in-alt me-2"></i>
-                                        <span>Login</span>
-                                    }
-                                </button>
-                            </div>
-                        </EditForm>
+                        <InputText class="form-control mt-2" @bind-Value="manualRegion" placeholder="Enter region name manually" />
                     }
+                    <ValidationMessage For="@(() => registerRequest.Region)" class="text-danger" />
+                </div>
 
-                    <!-- Registration Form -->
-                    @if (!isLoginTab)
+                <div class="mb-3">
+                    <label for="reg-division" class="form-label">
+                        <i class="fas fa-building me-2"></i>Division
+                    </label>
+                    <InputSelect id="reg-division" class="form-select" @bind-Value="registerRequest.Division" @bind-Value:after="OnDivisionChanged" disabled="@(string.IsNullOrEmpty(registerRequest.Region))">
+                        <option value="">Select Division</option>
+                        @foreach (var division in divisions)
+                        {
+                            <option value="@division">@division</option>
+                        }
+                        <option value="manual">+ Add New Division</option>
+                    </InputSelect>
+                    @if (registerRequest.Division == "manual")
                     {
-                        <EditForm Model="registerRequest" OnValidSubmit="HandleRegister">
-                            <DataAnnotationsValidator />
-                            
-                            <div class="row">
-                                <div class="col-12 col-md-6 mb-3">
-                                    <label for="reg-username" class="form-label">
-                                        <i class="fas fa-user me-2"></i>Username
-                                    </label>
-                                    <InputText id="reg-username" class="form-control form-control-lg" @bind-Value="registerRequest.Username" @oninput="OnUsernameChanged" placeholder="Enter username" />
-                                    <ValidationMessage For="@(() => registerRequest.Username)" class="text-danger" />
-                                </div>
-                                <div class="col-12 col-md-6 mb-3">
-                                    <label for="reg-email" class="form-label">
-                                        <i class="fas fa-envelope me-2"></i>Email
-                                    </label>
-                                    <InputText id="reg-email" type="email" class="form-control form-control-lg" @bind-Value="registerRequest.Email" placeholder="Enter email" />
-                                    <ValidationMessage For="@(() => registerRequest.Email)" class="text-danger" />
-                                </div>
-                            </div>
+                        <InputText class="form-control mt-2" @bind-Value="manualDivision" placeholder="Enter division name manually" />
+                    }
+                    <ValidationMessage For="@(() => registerRequest.Division)" class="text-danger" />
+                </div>
 
-                            <div class="row">
-                                <div class="col-12 col-md-6 mb-3">
-                                    <label for="reg-password" class="form-label">
-                                        <i class="fas fa-lock me-2"></i>Password
-                                    </label>
-                                    <InputText id="reg-password" type="password" class="form-control form-control-lg" @bind-Value="registerRequest.Password" @oninput="OnPasswordChanged" placeholder="Enter password" />
-                                    <ValidationMessage For="@(() => registerRequest.Password)" class="text-danger" />
-                                </div>
-                                <div class="col-12 col-md-6 mb-3">
-                                    <label for="reg-fullname" class="form-label">
-                                        <i class="fas fa-id-card me-2"></i>Full Name
-                                    </label>
-                                    <InputText id="reg-fullname" class="form-control form-control-lg text-uppercase" @bind-Value="registerRequest.FullName" @oninput="OnFullNameChanged" placeholder="Enter full name" />
-                                    <ValidationMessage For="@(() => registerRequest.FullName)" class="text-danger" />
-                                </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="reg-region" class="form-label">
-                                    <i class="fas fa-map-marker-alt me-2"></i>Region
-                                </label>
-                                <InputSelect id="reg-region" class="form-select form-select-lg" @bind-Value="registerRequest.Region" @bind-Value:after="OnRegionChanged">
-                                    <option value="">Select Region</option>
-                                    @foreach (var region in regions)
-                                    {
-                                        <option value="@region">@region</option>
-                                    }
-                                    <option value="manual">+ Add New Region</option>
-                                </InputSelect>
-                                @if (registerRequest.Region == "manual")
-                                {
-                                    <InputText class="form-control form-control-lg mt-2" @bind-Value="manualRegion" placeholder="Enter region name manually" />
-                                }
-                                <ValidationMessage For="@(() => registerRequest.Region)" class="text-danger" />
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="reg-division" class="form-label">
-                                    <i class="fas fa-building me-2"></i>Division
-                                </label>
-                                <InputSelect id="reg-division" class="form-select form-select-lg" @bind-Value="registerRequest.Division" @bind-Value:after="OnDivisionChanged" disabled="@(string.IsNullOrEmpty(registerRequest.Region))">
-                                    <option value="">Select Division</option>
-                                    @foreach (var division in divisions)
-                                    {
-                                        <option value="@division">@division</option>
-                                    }
-                                    <option value="manual">+ Add New Division</option>
-                                </InputSelect>
-                                @if (registerRequest.Division == "manual")
-                                {
-                                    <InputText class="form-control form-control-lg mt-2" @bind-Value="manualDivision" placeholder="Enter division name manually" />
-                                }
-                                <ValidationMessage For="@(() => registerRequest.Division)" class="text-danger" />
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="reg-district" class="form-label">
-                                    <i class="fas fa-map me-2"></i>District (Optional)
-                                </label>
-                                <InputSelect id="reg-district" class="form-select form-select-lg" @bind-Value="registerRequest.District" @bind-Value:after="OnDistrictChanged" disabled="@(string.IsNullOrEmpty(registerRequest.Division))">
-                                    <option value="">Select District (Optional)</option>
-                                    @foreach (var district in districts)
-                                    {
-                                        <option value="@district">@district</option>
-                                    }
-                                    <option value="manual">+ Add New District</option>
-                                </InputSelect>
-                                @if (registerRequest.District == "manual")
-                                {
-                                    <InputText class="form-control form-control-lg mt-2" @bind-Value="manualDistrict" placeholder="Enter district name manually" />
-                                }
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="reg-schoolname" class="form-label">
-                                    <i class="fas fa-school me-2"></i>School Name
-                                </label>
-                                <InputText id="reg-schoolname" class="form-control form-control-lg" @bind-Value="registerRequest.SchoolName" placeholder="Enter school name" />
-                                <ValidationMessage For="@(() => registerRequest.SchoolName)" class="text-danger" />
-                            </div>
-
-                            <div class="mb-4">
-                                <label for="reg-schooladdress" class="form-label">
-                                    <i class="fas fa-map-pin me-2"></i>School Address (Optional)
-                                </label>
-                                <InputTextArea id="reg-schooladdress" class="form-control form-control-lg" @bind-Value="registerRequest.SchoolAddress" placeholder="Enter school address" rows="2" />
-                            </div>
-
-                            @if (!string.IsNullOrEmpty(errorMessage))
-                            {
-                                <div class="alert alert-danger" role="alert">
-                                    @errorMessage
-                                </div>
-                            }
-
-                            @if (!string.IsNullOrEmpty(successMessage))
-                            {
-                                <div class="alert alert-success" role="alert">
-                                    @successMessage
-                                </div>
-                            }
-
-                            <div class="d-grid">
-                                <button type="submit" class="btn btn-success btn-lg py-3" disabled="@isLoading">
-                                    @if (isLoading)
-                                    {
-                                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                        <span>Registering...</span>
-                                    }
-                                    else
-                                    {
-                                        <i class="fas fa-user-plus me-2"></i>
-                                        <span>Register as Teacher</span>
-                                    }
-                                </button>
-                            </div>
-                        </EditForm>
+                <div class="mb-3">
+                    <label for="reg-district" class="form-label">
+                        <i class="fas fa-map me-2"></i>District (Optional)
+                    </label>
+                    <InputSelect id="reg-district" class="form-select" @bind-Value="registerRequest.District" @bind-Value:after="OnDistrictChanged" disabled="@(string.IsNullOrEmpty(registerRequest.Division))">
+                        <option value="">Select District (Optional)</option>
+                        @foreach (var district in districts)
+                        {
+                            <option value="@district">@district</option>
+                        }
+                        <option value="manual">+ Add New District</option>
+                    </InputSelect>
+                    @if (registerRequest.District == "manual")
+                    {
+                        <InputText class="form-control mt-2" @bind-Value="manualDistrict" placeholder="Enter district name manually" />
                     }
                 </div>
-            </div>
-        </div>
+
+                <div class="mb-3">
+                    <label for="reg-schoolname" class="form-label">
+                        <i class="fas fa-school me-2"></i>School Name
+                    </label>
+                    <InputText id="reg-schoolname" class="form-control" @bind-Value="registerRequest.SchoolName" placeholder="Enter school name" />
+                    <ValidationMessage For="@(() => registerRequest.SchoolName)" class="text-danger" />
+                </div>
+
+                <div class="mb-4">
+                    <label for="reg-schooladdress" class="form-label">
+                        <i class="fas fa-map-pin me-2"></i>School Address (Optional)
+                    </label>
+                    <InputTextArea id="reg-schooladdress" class="form-control" @bind-Value="registerRequest.SchoolAddress" placeholder="Enter school address" rows="2" />
+                </div>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger" role="alert">
+                        @errorMessage
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(successMessage))
+                {
+                    <div class="alert alert-success" role="alert">
+                        @successMessage
+                    </div>
+                }
+
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-success" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            <span>Registering...</span>
+                        }
+                        else
+                        {
+                            <i class="fas fa-user-plus me-2"></i>
+                            <span>Register as Teacher</span>
+                        }
+                    </button>
+                </div>
+            </EditForm>
+        }
     </div>
 </div>
 
@@ -247,8 +328,14 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Load regions for registration
-        await LoadRegions();
+        try
+        {
+            await LoadRegions();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error initializing: {ex.Message}");
+        }
     }
 
     private void SwitchTab(bool showLogin)
@@ -256,31 +343,6 @@
         isLoginTab = showLogin;
         errorMessage = string.Empty;
         successMessage = string.Empty;
-    }
-
-    private void OnUsernameChanged(ChangeEventArgs e)
-    {
-        registerRequest.Username = e.Value?.ToString() ?? "";
-    }
-
-    private void OnPasswordChanged(ChangeEventArgs e)
-    {
-        registerRequest.Password = e.Value?.ToString() ?? "";
-    }
-
-    private void OnFullNameChanged(ChangeEventArgs e)
-    {
-        registerRequest.FullName = e.Value?.ToString()?.ToUpper() ?? "";
-    }
-
-    private void OnLoginUsernameChanged(ChangeEventArgs e)
-    {
-        loginRequest.Username = e.Value?.ToString() ?? "";
-    }
-
-    private void OnLoginPasswordChanged(ChangeEventArgs e)
-    {
-        loginRequest.Password = e.Value?.ToString() ?? "";
     }
 
     private async Task HandleLogin()
@@ -296,24 +358,19 @@
         {
             var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
             var response = await httpClient.PostAsJsonAsync("api/auth/login", loginRequest);
-            
-            // Debug: Get the response content as string first
+
             var responseContent = await response.Content.ReadAsStringAsync();
             Console.WriteLine($"Response Status: {response.StatusCode}");
             Console.WriteLine($"Response Content: {responseContent}");
-            
+
             if (response.IsSuccessStatusCode)
             {
-                // Try to parse as JSON
                 if (responseContent.TrimStart().StartsWith("{"))
                 {
                     var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
                     if (result?.Success == true && result.User != null)
                     {
-                        // Store user info in AuthService
                         AuthService.SetCurrentUser(result.User);
-                        
-                        // Navigate directly to QR scanner
                         Navigation.NavigateTo("/qr-scanner");
                     }
                     else
@@ -328,7 +385,6 @@
             }
             else
             {
-                // Try to parse error response as JSON
                 if (responseContent.TrimStart().StartsWith("{"))
                 {
                     var errorResult = await response.Content.ReadFromJsonAsync<LoginResponse>();
@@ -362,7 +418,6 @@
 
         try
         {
-            // Use manual values if "manual" is selected
             if (registerRequest.Region == "manual" && !string.IsNullOrEmpty(manualRegion))
             {
                 registerRequest.Region = manualRegion;
@@ -378,15 +433,14 @@
 
             var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
             var response = await httpClient.PostAsJsonAsync("api/register/teacher", registerRequest);
-            
+
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<RegisterResponse>();
                 if (result?.Success == true)
                 {
                     successMessage = "Registration successful! You can now login with your credentials.";
-                    registerRequest = new(); // Clear form
-                    // Switch to login tab
+                    registerRequest = new();
                     isLoginTab = true;
                 }
                 else
@@ -421,7 +475,6 @@
         }
         catch (Exception ex)
         {
-            // Handle error silently for now
             Console.WriteLine($"Error loading regions: {ex.Message}");
         }
     }
@@ -437,7 +490,7 @@
         {
             await LoadDivisions(registerRequest.Region);
         }
-        
+
         StateHasChanged();
     }
 
@@ -450,7 +503,7 @@
         {
             await LoadDistricts(registerRequest.Division);
         }
-        
+
         StateHasChanged();
     }
 

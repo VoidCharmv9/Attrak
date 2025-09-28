@@ -17,5 +17,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Models\TeacherSubjectAssignment.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Models\Student.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Models\AttendanceModels.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Models\SchoolInfo.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Models\DailyAttendanceModels.cs" />
   </ItemGroup>
 </Project>

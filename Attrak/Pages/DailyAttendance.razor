@@ -1,0 +1,522 @@
+@page "/daily-attendance"
+@using AttrackSharedClass.Models
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components
+@using Attrak.Services
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime
+@inject IAuthService AuthService
+
+<PageTitle>Student Daily Attendance Management</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-calendar-day me-2"></i>
+                        Student Daily Attendance Management
+                    </h3>
+                    <p class="text-muted mb-0">Teachers can manage student daily attendance</p>
+                </div>
+                <div class="card-body">
+                    @if (!string.IsNullOrEmpty(successMessage))
+                    {
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            @successMessage
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            @errorMessage
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    }
+
+                    <!-- Teacher Info Display -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                <h5 class="alert-heading">
+                                    <i class="fas fa-user-tie me-2"></i>
+                                    Current Teacher
+                                </h5>
+                                @if (!string.IsNullOrEmpty(currentTeacherName))
+                                {
+                                    <p class="mb-0">
+                                        <strong>@currentTeacherName</strong>
+                                        <br>
+                                        <small class="text-muted">
+                                            Section: <strong>@currentTeacherSection</strong> | School: <strong>@currentTeacherSchool</strong>
+                                        </small>
+                                        <br>
+                                        <small class="text-muted">Managing student daily attendance</small>
+                                    </p>
+                                }
+                                else
+                                {
+                                    <p class="mb-0 text-muted">No teacher logged in</p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Student Selection -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="card-title mb-0">
+                                        <i class="fas fa-user-graduate me-2"></i>
+                                        Select Student
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Student:</label>
+                                            <InputSelect class="form-select" @bind-Value="selectedStudentId" @bind-Value:after="OnStudentChanged">
+                                                <option value="">Select a student...</option>
+                                                @foreach (var student in students)
+                                                {
+                                                    <option value="@student.StudentId">@student.FullName - Grade @student.GradeLevel @student.Section</option>
+                                                }
+                                            </InputSelect>
+                                        </div>
+                                        <div class="col-md-6">
+                                            @if (!string.IsNullOrEmpty(selectedStudentName))
+                                            {
+                                                <label class="form-label">Selected Student Info:</label>
+                                                <div class="form-control-plaintext">
+                                                    <strong>@selectedStudentName</strong><br>
+                                                    <small class="text-muted">Grade @selectedStudentGrade - @selectedStudentSection</small>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(selectedStudentId))
+                    {
+                        <!-- Date Selection -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label class="form-label">Select Date:</label>
+                                <input type="date" class="form-control" @bind="selectedDate" @bind:after="OnDateChanged" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Current Time:</label>
+                                <div class="form-control-plaintext">
+                                    <i class="fas fa-clock me-2"></i>
+                                    <strong>@DateTime.Now.ToString("hh:mm:ss tt")</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Attendance Status Card -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <div class="card @(attendanceStatus == "Present" ? "border-success" : attendanceStatus == "Late" ? "border-warning" : "border-secondary")">
+                                    <div class="card-body text-center">
+                                        <h4 class="card-title">
+                                            @if (attendanceStatus == "Present")
+                                            {
+                                                <i class="fas fa-check-circle text-success me-2"></i>
+                                                <span class="text-success">Present</span>
+                                            }
+                                            else if (attendanceStatus == "Late")
+                                            {
+                                                <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                                                <span class="text-warning">Late</span>
+                                            }
+                                            else
+                                            {
+                                                <i class="fas fa-times-circle text-secondary me-2"></i>
+                                                <span class="text-secondary">Not Marked</span>
+                                            }
+                                        </h4>
+                                        @if (!string.IsNullOrEmpty(timeInTime))
+                                        {
+                                            <p class="card-text">
+                                                <strong>Time In:</strong> @timeInTime
+                                            </p>
+                                        }
+                                        <p class="card-text text-muted">
+                                            <small>@selectedDate.ToString("MMMM dd, yyyy")</small>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Mark Attendance Button -->
+                        <div class="row mb-4">
+                            <div class="col-12 text-center">
+                                @if (attendanceStatus == "Not Marked")
+                                {
+                                    <button class="btn btn-success btn-lg px-5" @onclick="MarkAttendance" disabled="@isProcessing">
+                                        @if (isProcessing)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-2"></span>
+                                        }
+                                        else
+                                        {
+                                            <i class="fas fa-check-circle me-2"></i>
+                                        }
+                                        Mark Student Present
+                                    </button>
+                                }
+                                else
+                                {
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        @selectedStudentName has already been marked for today.
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <!-- Attendance History -->
+                        <div class="row">
+                            <div class="col-12">
+                                <h5 class="mb-3">
+                                    <i class="fas fa-history me-2"></i>
+                                    Recent Attendance History
+                                </h5>
+                                @if (isLoadingHistory)
+                                {
+                                    <div class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p class="mt-2">Loading attendance history...</p>
+                                    </div>
+                                }
+                                else if (attendanceHistory.Any())
+                                {
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Date</th>
+                                                    <th>Day</th>
+                                                    <th>Time In</th>
+                                                    <th>Status</th>
+                                                    <th>Remarks</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var record in attendanceHistory)
+                                                {
+                                                    <tr>
+                                                        <td>@record.Date.ToString("MMM dd, yyyy")</td>
+                                                        <td>@record.Date.ToString("dddd")</td>
+                                                        <td>
+                                                            @if (!string.IsNullOrEmpty(record.TimeIn))
+                                                            {
+                                                                <span class="badge bg-primary">@record.TimeIn</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="text-muted">-</span>
+                                                            }
+                                                        </td>
+                                                        <td>
+                                                            @if (record.Status == "Present")
+                                                            {
+                                                                <span class="badge bg-success">Present</span>
+                                                            }
+                                                            else if (record.Status == "Late")
+                                                            {
+                                                                <span class="badge bg-warning">Late</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="badge bg-secondary">Absent</span>
+                                                            }
+                                                        </td>
+                                                        <td>
+                                                            @if (!string.IsNullOrEmpty(record.Remarks))
+                                                            {
+                                                                <small class="text-muted">@record.Remarks</small>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="text-muted">-</span>
+                                                            }
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="text-center py-4">
+                                        <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+                                        <p class="text-muted">No attendance records found.</p>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-5">
+                            <i class="fas fa-user-graduate fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">Select a Student</h5>
+                            <p class="text-muted">Please select a student from the dropdown above to manage their daily attendance.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    // Data
+    private List<Student> students = new();
+    private List<DailyAttendanceRecord> attendanceHistory = new();
+
+    // UI State
+    private string selectedStudentId = "";
+    private string selectedStudentName = "";
+    private string selectedStudentGrade = "";
+    private string selectedStudentSection = "";
+    private string currentTeacherName = "";
+    private string currentTeacherId = "";
+    private string currentTeacherSection = "";
+    private string currentTeacherSchool = "";
+    private DateTime selectedDate = DateTime.Today;
+    private string attendanceStatus = "Not Marked";
+    private string timeInTime = "";
+    private bool isLoadingHistory = false;
+    private bool isProcessing = false;
+
+    // Messages
+    private string successMessage = "";
+    private string errorMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStudents();
+        await LoadCurrentTeacher();
+    }
+
+    private async Task LoadStudents()
+    {
+        try
+        {
+            // Load students filtered by teacher's section and school
+            var response = await Http.GetFromJsonAsync<List<Student>>($"api/register/students?teacherId={currentTeacherId}");
+            if (response != null)
+            {
+                students = response;
+            }
+        }
+        catch (Exception)
+        {
+            errorMessage = "Error loading students list";
+        }
+    }
+
+    private async Task LoadCurrentTeacher()
+    {
+        try
+        {
+            var currentUser = await AuthService.GetCurrentUserAsync();
+            
+            if (currentUser != null && currentUser.UserType == UserType.Teacher)
+            {
+                currentTeacherName = currentUser.Username;
+                
+                // Get detailed teacher information including section and school
+                var teacherResponse = await Http.GetFromJsonAsync<TeacherInfo>($"api/register/teacher-by-user/{currentUser.UserId}");
+                if (teacherResponse != null)
+                {
+                    currentTeacherId = teacherResponse.TeacherId;
+                    currentTeacherSection = teacherResponse.Section;
+                    currentTeacherSchool = teacherResponse.SchoolName;
+                    
+                    // Reload students with teacher filter after getting teacher info
+                    await LoadStudents();
+                }
+                else
+                {
+                    errorMessage = "Unable to load teacher details";
+                }
+            }
+            else
+            {
+                errorMessage = "Please login as a teacher to access this page";
+            }
+        }
+        catch (Exception)
+        {
+            errorMessage = "Error loading current teacher information";
+        }
+    }
+
+    private async Task OnStudentChanged()
+    {
+        if (!string.IsNullOrEmpty(selectedStudentId))
+        {
+            // Find the selected student's information
+            var student = students.FirstOrDefault(s => s.StudentId == selectedStudentId);
+            if (student != null)
+            {
+                selectedStudentName = student.FullName;
+                selectedStudentGrade = student.GradeLevel.ToString();
+                selectedStudentSection = student.Section;
+                
+                // Load attendance data for the selected student
+                await LoadTodayAttendance();
+                await LoadAttendanceHistory();
+            }
+        }
+        else
+        {
+            // Clear student info
+            selectedStudentName = "";
+            selectedStudentGrade = "";
+            selectedStudentSection = "";
+            attendanceStatus = "Not Marked";
+            timeInTime = "";
+            attendanceHistory.Clear();
+        }
+    }
+
+    private async Task OnDateChanged()
+    {
+        await LoadTodayAttendance();
+        await LoadAttendanceHistory();
+    }
+
+    private async Task LoadTodayAttendance()
+    {
+        if (string.IsNullOrEmpty(selectedStudentId)) return;
+
+        try
+        {
+            var response = await Http.GetFromJsonAsync<DailyAttendanceStatus>($"api/attendance/daily-status/{selectedStudentId}?date={selectedDate:yyyy-MM-dd}");
+            
+            if (response != null)
+            {
+                attendanceStatus = response.Status;
+                timeInTime = response.TimeIn ?? "";
+            }
+            else
+            {
+                attendanceStatus = "Not Marked";
+                timeInTime = "";
+            }
+        }
+        catch (Exception)
+        {
+            attendanceStatus = "Not Marked";
+            timeInTime = "";
+        }
+    }
+
+    private async Task LoadAttendanceHistory()
+    {
+        if (string.IsNullOrEmpty(selectedStudentId)) return;
+
+        isLoadingHistory = true;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<DailyAttendanceRecord>>($"api/attendance/daily-history/{selectedStudentId}?days=30");
+            attendanceHistory = response ?? new List<DailyAttendanceRecord>();
+        }
+        catch (Exception)
+        {
+            attendanceHistory = new List<DailyAttendanceRecord>();
+        }
+        finally
+        {
+            isLoadingHistory = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task MarkAttendance()
+    {
+        if (string.IsNullOrEmpty(selectedStudentId)) return;
+
+        isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            var request = new DailyTimeInRequest
+            {
+                StudentId = selectedStudentId,
+                Date = selectedDate,
+                TimeIn = DateTime.Now.TimeOfDay
+            };
+
+            var response = await Http.PostAsJsonAsync("api/attendance/daily-timein", request);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<DailyTimeInResponse>();
+                if (result?.Success == true)
+                {
+                    successMessage = $"Attendance marked successfully! Status: {result.Status}";
+                    errorMessage = "";
+                    attendanceStatus = result.Status;
+                    timeInTime = result.TimeIn;
+                    
+                    // Refresh history
+                    await LoadAttendanceHistory();
+                    
+                    // Auto-hide success message after 3 seconds
+                    _ = Task.Delay(3000).ContinueWith(_ => {
+                        successMessage = "";
+                        InvokeAsync(StateHasChanged);
+                    });
+                }
+                else
+                {
+                    errorMessage = result?.Message ?? "Failed to mark attendance";
+                    successMessage = "";
+                }
+            }
+            else
+            {
+                var errorResponse = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    var errorObj = System.Text.Json.JsonSerializer.Deserialize<dynamic>(errorResponse);
+                    errorMessage = $"Error: {errorObj?.GetProperty("message")?.GetString() ?? "Failed to mark attendance"}";
+                }
+                catch
+                {
+                    errorMessage = "Error marking attendance. Please try again.";
+                }
+                successMessage = "";
+            }
+        }
+        catch (Exception)
+        {
+            errorMessage = "Error marking attendance";
+            successMessage = "";
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+}

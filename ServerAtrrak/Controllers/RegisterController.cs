@@ -231,6 +231,26 @@ namespace ServerAtrrak.Controllers
             }
         }
 
+        [HttpGet("schools/search")]
+        public async Task<ActionResult<List<SchoolInfo>>> SearchSchools([FromQuery] string name)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(name) || name.Length < 2)
+                {
+                    return Ok(new List<SchoolInfo>());
+                }
+
+                var schools = await _schoolService.SearchSchoolsAsync(name);
+                return Ok(schools);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error searching schools: {ErrorMessage}", ex.Message);
+                return StatusCode(500, new List<SchoolInfo>());
+            }
+        }
+
         [HttpGet("student/{studentId}/qr")]
         public async Task<ActionResult<string>> GetStudentQRCode(string studentId)
         {
@@ -303,6 +323,59 @@ namespace ServerAtrrak.Controllers
             }
         }
 
+        [HttpGet("students")]
+        public async Task<ActionResult<List<Student>>> GetStudents([FromQuery] string? teacherId)
+        {
+            try
+            {
+                var students = await GetStudentsAsync(teacherId);
+                return Ok(students);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting students for teacher {TeacherId}: {ErrorMessage}", teacherId, ex.Message);
+                return StatusCode(500, new List<Student>());
+            }
+        }
+
+        [HttpGet("teacher-by-user/{userId}")]
+        public async Task<ActionResult<TeacherInfo>> GetTeacherByUserId(string userId)
+        {
+            try
+            {
+                var teacherInfo = await GetTeacherByUserIdAsync(userId);
+                if (teacherInfo == null)
+                {
+                    return NotFound("Teacher not found");
+                }
+                return Ok(teacherInfo);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting teacher by user ID {UserId}: {ErrorMessage}", userId, ex.Message);
+                return StatusCode(500, "Error retrieving teacher information");
+            }
+        }
+
+        [HttpGet("student-info/{studentId}")]
+        public async Task<ActionResult<StudentDisplayInfo>> GetStudentInfoForScanner(string studentId)
+        {
+            try
+            {
+                var studentInfo = await GetStudentDisplayInfoAsync(studentId);
+                if (studentInfo == null)
+                {
+                    return NotFound("Student not found");
+                }
+                return Ok(studentInfo);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting student info for scanner: {StudentId}: {ErrorMessage}", studentId, ex.Message);
+                return StatusCode(500, "Error retrieving student information");
+            }
+        }
+
         private async Task<bool> EmailExistsAsync(string email)
         {
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
@@ -324,14 +397,17 @@ namespace ServerAtrrak.Controllers
 
             var teacherId = Guid.NewGuid().ToString();
             var query = @"
-                INSERT INTO teacher (TeacherId, FullName, Email, SchoolId)
-                VALUES (@TeacherId, @FullName, @Email, @SchoolId)";
+                INSERT INTO teacher (TeacherId, FullName, Email, SchoolId, Gradelvl, Section, Strand)
+                VALUES (@TeacherId, @FullName, @Email, @SchoolId, @Gradelvl, @Section, @Strand)";
 
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@TeacherId", teacherId);
             command.Parameters.AddWithValue("@FullName", request.FullName);
             command.Parameters.AddWithValue("@Email", request.Email);
             command.Parameters.AddWithValue("@SchoolId", schoolId);
+            command.Parameters.AddWithValue("@Gradelvl", request.GradeLevel);
+            command.Parameters.AddWithValue("@Section", request.Section);
+            command.Parameters.AddWithValue("@Strand", request.Strand ?? (object)DBNull.Value);
 
             await command.ExecuteNonQueryAsync();
             return teacherId;
@@ -382,8 +458,8 @@ namespace ServerAtrrak.Controllers
 
             var studentId = Guid.NewGuid().ToString();
             var query = @"
-                INSERT INTO student (StudentId, FullName, Email, GradeLevel, Section, Strand, SchoolId, QRImage)
-                VALUES (@StudentId, @FullName, @Email, @GradeLevel, @Section, @Strand, @SchoolId, @QRImage)";
+                INSERT INTO student (StudentId, FullName, Email, GradeLevel, Section, Strand, SchoolId, ParentsNumber, QRImage)
+                VALUES (@StudentId, @FullName, @Email, @GradeLevel, @Section, @Strand, @SchoolId, @ParentsNumber, @QRImage)";
 
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@StudentId", studentId);
@@ -393,6 +469,7 @@ namespace ServerAtrrak.Controllers
             command.Parameters.AddWithValue("@Section", request.Section);
             command.Parameters.AddWithValue("@Strand", request.Strand ?? (object)DBNull.Value);
             command.Parameters.AddWithValue("@SchoolId", schoolId);
+            command.Parameters.AddWithValue("@ParentsNumber", request.ParentsNumber);
             command.Parameters.AddWithValue("@QRImage", ""); // Will be updated after QR generation
 
             await command.ExecuteNonQueryAsync();
@@ -505,7 +582,7 @@ namespace ServerAtrrak.Controllers
             using var connection = new MySqlConnection(_dbConnection.GetConnection());
             await connection.OpenAsync();
 
-            var query = "SELECT StudentId, FullName, GradeLevel, Section, Strand, SchoolId FROM student WHERE StudentId = @StudentId";
+            var query = "SELECT StudentId, FullName, GradeLevel, Section, Strand, SchoolId, ParentsNumber FROM student WHERE StudentId = @StudentId";
             using var command = new MySqlCommand(query, connection);
             command.Parameters.AddWithValue("@StudentId", studentId);
 
@@ -519,7 +596,8 @@ namespace ServerAtrrak.Controllers
                     GradeLevel = reader.GetInt32("GradeLevel"),
                     Section = reader.GetString("Section"),
                     Strand = reader.IsDBNull("Strand") ? null : reader.GetString("Strand"),
-                    SchoolId = reader.GetString("SchoolId")
+                    SchoolId = reader.GetString("SchoolId"),
+                    ParentsNumber = reader.GetString("ParentsNumber")
                 };
             }
 
@@ -551,6 +629,163 @@ namespace ServerAtrrak.Controllers
 
             return null;
         }
+
+        private async Task<List<Student>> GetStudentsAsync(string? teacherId)
+        {
+            var students = new List<Student>();
+            
+            using var connection = new MySqlConnection(_dbConnection.GetConnection());
+            await connection.OpenAsync();
+
+            string query;
+            MySqlCommand command;
+
+            if (!string.IsNullOrEmpty(teacherId))
+            {
+                // Get students from the same section and school as the teacher
+                query = @"
+                    SELECT s.StudentId, s.FullName, s.GradeLevel, s.Section, s.Strand, s.SchoolId, s.ParentsNumber
+                    FROM student s
+                    INNER JOIN teacher t ON t.TeacherId = @TeacherId
+                    WHERE s.SchoolId = t.SchoolId AND s.Section = t.Section
+                    ORDER BY s.FullName";
+
+                command = new MySqlCommand(query, connection);
+                command.Parameters.AddWithValue("@TeacherId", teacherId);
+            }
+            else
+            {
+                // Get all students if no teacher ID provided
+                query = "SELECT StudentId, FullName, GradeLevel, Section, Strand, SchoolId, ParentsNumber FROM student ORDER BY FullName";
+                command = new MySqlCommand(query, connection);
+            }
+
+            using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                students.Add(new Student
+                {
+                    StudentId = reader.GetString("StudentId"),
+                    FullName = reader.GetString("FullName"),
+                    GradeLevel = reader.GetInt32("GradeLevel"),
+                    Section = reader.GetString("Section"),
+                    Strand = reader.IsDBNull("Strand") ? null : reader.GetString("Strand"),
+                    SchoolId = reader.GetString("SchoolId"),
+                    ParentsNumber = reader.GetString("ParentsNumber")
+                });
+            }
+
+            return students;
+        }
+
+        private async Task<TeacherInfo?> GetTeacherByIdAsync(string teacherId)
+        {
+            using var connection = new MySqlConnection(_dbConnection.GetConnection());
+            await connection.OpenAsync();
+
+            var query = @"
+                SELECT t.TeacherId, t.FullName, t.Email, s.SchoolName, s.SchoolId, t.Gradelvl, t.Section, t.Strand
+                FROM teacher t
+                INNER JOIN school s ON t.SchoolId = s.SchoolId
+                WHERE t.TeacherId = @TeacherId";
+
+            using var command = new MySqlCommand(query, connection);
+            command.Parameters.AddWithValue("@TeacherId", teacherId);
+
+            using var reader = await command.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                return new TeacherInfo
+                {
+                    TeacherId = reader.GetString("TeacherId"),
+                    FullName = reader.GetString("FullName"),
+                    Email = reader.GetString("Email"),
+                    SchoolName = reader.GetString("SchoolName"),
+                    SchoolId = reader.GetString("SchoolId"),
+                    GradeLevel = reader.GetInt32("Gradelvl"),
+                    Section = reader.GetString("Section"),
+                    Strand = reader.IsDBNull("Strand") ? null : reader.GetString("Strand")
+                };
+            }
+
+            return null;
+        }
+
+        private async Task<TeacherInfo?> GetTeacherByUserIdAsync(string userId)
+        {
+            using var connection = new MySqlConnection(_dbConnection.GetConnection());
+            await connection.OpenAsync();
+
+            var query = @"
+                SELECT t.TeacherId, t.FullName, t.Email, s.SchoolName, s.SchoolId, t.Gradelvl, t.Section, t.Strand
+                FROM user u
+                INNER JOIN teacher t ON u.TeacherId = t.TeacherId
+                INNER JOIN school s ON t.SchoolId = s.SchoolId
+                WHERE u.UserId = @UserId";
+
+            using var command = new MySqlCommand(query, connection);
+            command.Parameters.AddWithValue("@UserId", userId);
+
+            using var reader = await command.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                return new TeacherInfo
+                {
+                    TeacherId = reader.GetString("TeacherId"),
+                    FullName = reader.GetString("FullName"),
+                    Email = reader.GetString("Email"),
+                    SchoolName = reader.GetString("SchoolName"),
+                    SchoolId = reader.GetString("SchoolId"),
+                    GradeLevel = reader.GetInt32("Gradelvl"),
+                    Section = reader.GetString("Section"),
+                    Strand = reader.IsDBNull("Strand") ? null : reader.GetString("Strand")
+                };
+            }
+
+            return null;
+        }
+
+        private async Task<StudentDisplayInfo?> GetStudentDisplayInfoAsync(string studentId)
+        {
+            using var connection = new MySqlConnection(_dbConnection.GetConnection());
+            await connection.OpenAsync();
+
+            var query = @"
+                SELECT s.StudentId, s.FullName, s.GradeLevel, s.Section, s.Strand, s.SchoolId, s.ParentsNumber, sch.SchoolName, s.QRImage
+                FROM student s
+                INNER JOIN school sch ON s.SchoolId = sch.SchoolId
+                WHERE s.StudentId = @StudentId";
+
+            using var command = new MySqlCommand(query, connection);
+            command.Parameters.AddWithValue("@StudentId", studentId);
+
+            using var reader = await command.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                var qrCodeData = "";
+                if (!reader.IsDBNull("QRImage"))
+                {
+                    var qrBytes = (byte[])reader["QRImage"];
+                    qrCodeData = System.Text.Encoding.UTF8.GetString(qrBytes);
+                }
+
+                return new StudentDisplayInfo
+                {
+                    StudentId = reader.GetString("StudentId"),
+                    FullName = reader.GetString("FullName"),
+                    GradeLevel = reader.GetInt32("GradeLevel"),
+                    Section = reader.GetString("Section"),
+                    Strand = reader.IsDBNull("Strand") ? null : reader.GetString("Strand"),
+                    ParentsNumber = reader.GetString("ParentsNumber"),
+                    SchoolName = reader.GetString("SchoolName"),
+                    QRCodeData = qrCodeData,
+                    IsValid = true,
+                    Message = "Student information retrieved successfully"
+                };
+            }
+
+            return null;
+        }
     }
 
     public class StudentRegisterRequest
@@ -563,6 +798,7 @@ namespace ServerAtrrak.Controllers
         public string Section { get; set; } = string.Empty;
         public string? Strand { get; set; }
         public string SchoolName { get; set; } = string.Empty;
+        public string ParentsNumber { get; set; } = string.Empty;
     }
 
     public class StudentRegisterResponse
@@ -582,5 +818,6 @@ namespace ServerAtrrak.Controllers
         public string Section { get; set; } = string.Empty;
         public string? Strand { get; set; }
         public string SchoolId { get; set; } = string.Empty;
+        public string ParentsNumber { get; set; } = string.Empty;
     }
 }

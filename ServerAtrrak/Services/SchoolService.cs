@@ -234,15 +234,59 @@ namespace ServerAtrrak.Services
                 throw;
             }
         }
-    }
 
-    public class SchoolInfo
-    {
-        public string SchoolId { get; set; } = string.Empty;
-        public string SchoolName { get; set; } = string.Empty;
-        public string Region { get; set; } = string.Empty;
-        public string Division { get; set; } = string.Empty;
-        public string? District { get; set; }
-        public string? SchoolAddress { get; set; }
+        public async Task<List<SchoolInfo>> SearchSchoolsAsync(string name)
+        {
+            try
+            {
+                using var connection = new MySqlConnection(_dbConnection.GetConnection());
+                await connection.OpenAsync();
+
+                var query = @"
+                    SELECT SchoolId, SchoolName, Region, Division, District, SchoolAddress 
+                    FROM school 
+                    WHERE SchoolName LIKE @SearchTerm 
+                    ORDER BY 
+                        CASE 
+                            WHEN SchoolName LIKE @ExactMatch THEN 1
+                            WHEN SchoolName LIKE @StartsWith THEN 2
+                            ELSE 3
+                        END,
+                        SchoolName
+                    LIMIT 10";
+
+                using var command = new MySqlCommand(query, connection);
+                var searchTerm = $"%{name}%";
+                var exactMatch = $"{name}%";
+                var startsWith = $"{name}%";
+
+                command.Parameters.AddWithValue("@SearchTerm", searchTerm);
+                command.Parameters.AddWithValue("@ExactMatch", exactMatch);
+                command.Parameters.AddWithValue("@StartsWith", startsWith);
+
+                using var reader = await command.ExecuteReaderAsync();
+
+                var schools = new List<SchoolInfo>();
+                while (await reader.ReadAsync())
+                {
+                    schools.Add(new SchoolInfo
+                    {
+                        SchoolId = reader.GetString(0),
+                        SchoolName = reader.GetString(1),
+                        Region = reader.GetString(2),
+                        Division = reader.GetString(3),
+                        District = reader.IsDBNull(4) ? null : reader.GetString(4),
+                        SchoolAddress = reader.IsDBNull(5) ? null : reader.GetString(5)
+                    });
+                }
+
+                return schools;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error searching schools: {ErrorMessage}", ex.Message);
+                throw;
+            }
+        }
     }
 }

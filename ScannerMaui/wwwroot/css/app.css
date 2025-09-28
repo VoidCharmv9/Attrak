@@ -84,3 +84,82 @@ h1:focus {
         padding-left: env(safe-area-inset-left);
     }
 }
+
+/* Mobile-friendly form controls to prevent zoom */
+@media screen and (max-width: 768px) {
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="tel"],
+    input[type="url"],
+    input[type="search"],
+    textarea,
+    select {
+        font-size: 16px !important; /* Prevents zoom on iOS */
+        min-height: 48px; /* Ensures touch-friendly size */
+        padding: 12px 16px;
+    }
+    
+    .form-control,
+    .form-select {
+        font-size: 16px !important;
+        min-height: 48px;
+        padding: 12px 16px;
+    }
+    
+    /* Force zoom effect on focus */
+    .form-control:focus,
+    .form-select:focus,
+    input:focus,
+    select:focus,
+    textarea:focus {
+        transform: scale(1.1) !important;
+        transition: transform 0.3s ease !important;
+        z-index: 1000 !important;
+        position: relative !important;
+        box-shadow: 0 0 20px rgba(13, 110, 253, 0.5) !important;
+        border-color: #0d6efd !important;
+    }
+    
+    /* Active state for touch */
+    .form-control:active,
+    .form-select:active,
+    input:active,
+    select:active,
+    textarea:active {
+        transform: scale(1.05) !important;
+        transition: transform 0.2s ease !important;
+    }
+    
+    /* Force zoom class for manual application */
+    .force-zoom {
+        transform: scale(1.1) !important;
+        transition: transform 0.3s ease !important;
+        z-index: 1000 !important;
+        position: relative !important;
+        box-shadow: 0 0 20px rgba(13, 110, 253, 0.5) !important;
+    }
+}
+
+/* Additional mobile optimizations */
+@media screen and (max-width: 576px) {
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="tel"],
+    input[type="url"],
+    input[type="search"],
+    textarea,
+    select {
+        font-size: 16px !important;
+        min-height: 50px;
+        padding: 14px 16px;
+    }
+    
+    .form-control,
+    .form-select {
+        font-size: 16px !important;
+        min-height: 50px;
+        padding: 14px 16px;
+    }
+}

@@ -7,8 +7,7 @@ namespace AttrackSharedClass.Models
         [Required]
         public string StudentId { get; set; } = string.Empty;
         
-        [Required]
-        public string SubjectId { get; set; } = string.Empty;
+        public string? SubjectId { get; set; }
         
         [Required]
         public string TeacherId { get; set; } = string.Empty;
@@ -23,6 +22,8 @@ namespace AttrackSharedClass.Models
         
         [Required]
         public string AttendanceType { get; set; } = "TimeIn";
+        
+        public string? Remarks { get; set; }
     }
 
     public class AttendanceResponse
@@ -33,6 +34,7 @@ namespace AttrackSharedClass.Models
         public bool IsValid { get; set; }
         public string Status { get; set; } = "Present";
         public string AttendanceType { get; set; } = "TimeIn";
+        public string? Remarks { get; set; }
     }
 
     public class AttendanceRecord
@@ -44,5 +46,6 @@ namespace AttrackSharedClass.Models
         public string Status { get; set; } = "Present";
         public string AttendanceType { get; set; } = "TimeIn";
         public string Message { get; set; } = string.Empty;
+        public string? Remarks { get; set; }
     }
 }

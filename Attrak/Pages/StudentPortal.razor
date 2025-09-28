@@ -126,6 +126,14 @@
                                 </div>
                             </div>
 
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="reg-parentsnumber" class="form-label">Parent's Contact Number</label>
+                                    <InputText id="reg-parentsnumber" class="form-control" @bind-Value="studentRegisterRequest.ParentsNumber" placeholder="Enter parent's contact number" />
+                                    <ValidationMessage For="@(() => studentRegisterRequest.ParentsNumber)" class="text-danger" />
+                                </div>
+                            </div>
+
                             @if (ShouldShowStrandDropdown())
                             {
                                 <div class="mb-3">
@@ -246,17 +254,13 @@
         [Required]
         [MaxLength(200)]
         public string SchoolName { get; set; } = string.Empty;
+        
+        [Required]
+        [Phone]
+        [MaxLength(20)]
+        public string ParentsNumber { get; set; } = string.Empty;
     }
 
-    public class SchoolInfo
-    {
-        public string SchoolId { get; set; } = string.Empty;
-        public string SchoolName { get; set; } = string.Empty;
-        public string Region { get; set; } = string.Empty;
-        public string Division { get; set; } = string.Empty;
-        public string? District { get; set; }
-        public string? SchoolAddress { get; set; }
-    }
 
     protected override async Task OnInitializedAsync()
     {

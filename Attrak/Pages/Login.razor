@@ -2,13 +2,15 @@
 @page "/login"
 @using Attrak.Services
 @using AttrackSharedClass.Models
+@using static Attrak.Pages.StudentDashboard
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
 @inject HttpClient Http
+@implements IDisposable
 
 <PageTitle>Login - Attrak</PageTitle>
 
-<div class="container-fluid vh-100 d-flex align-items-center justify-content-center bg-light">
+<div class="container-fluid vh-100 d-flex align-items-center justify-content-center bg-light" @onclick="HideSchoolSuggestions">
     <div class="row w-100">
         <div class="col-md-10 col-lg-8 mx-auto">
             <div class="card shadow">
@@ -79,93 +81,147 @@
                         <EditForm Model="registerRequest" OnValidSubmit="HandleRegister">
                             <DataAnnotationsValidator />
                             
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="reg-username" class="form-label">Username</label>
-                                    <InputText id="reg-username" class="form-control" @bind-Value="registerRequest.Username" @oninput="OnUsernameChanged" placeholder="Enter username" />
-                                    <ValidationMessage For="@(() => registerRequest.Username)" class="text-danger" />
+                            <!-- Personal Information Section -->
+                            <div class="card mb-4">
+                                <div class="card-header bg-primary text-white">
+                                    <h5 class="mb-0"><i class="fas fa-user me-2"></i>Personal Information</h5>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="reg-email" class="form-label">Email</label>
-                                    <InputText id="reg-email" type="email" class="form-control" @bind-Value="registerRequest.Email" placeholder="Enter email" />
-                                    <ValidationMessage For="@(() => registerRequest.Email)" class="text-danger" />
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="reg-username" class="form-label">Username</label>
+                                            <InputText id="reg-username" class="form-control" @bind-Value="registerRequest.Username" @oninput="OnUsernameChanged" placeholder="Enter username" />
+                                            <ValidationMessage For="@(() => registerRequest.Username)" class="text-danger" />
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="reg-email" class="form-label">Email</label>
+                                            <InputText id="reg-email" type="email" class="form-control" @bind-Value="registerRequest.Email" placeholder="Enter email" />
+                                            <ValidationMessage For="@(() => registerRequest.Email)" class="text-danger" />
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="reg-password" class="form-label">Password</label>
+                                            <InputText id="reg-password" type="password" class="form-control" @bind-Value="registerRequest.Password" @oninput="OnPasswordChanged" placeholder="Enter password" />
+                                            <ValidationMessage For="@(() => registerRequest.Password)" class="text-danger" />
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="reg-fullname" class="form-label">Full Name</label>
+                                            <InputText id="reg-fullname" class="form-control text-uppercase" @bind-Value="registerRequest.FullName" @oninput="OnFullNameChanged" placeholder="Enter full name" />
+                                            <ValidationMessage For="@(() => registerRequest.FullName)" class="text-danger" />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="reg-password" class="form-label">Password</label>
-                                    <InputText id="reg-password" type="password" class="form-control" @bind-Value="registerRequest.Password" @oninput="OnPasswordChanged" placeholder="Enter password" />
-                                    <ValidationMessage For="@(() => registerRequest.Password)" class="text-danger" />
+                            <!-- School Information Section -->
+                            <div class="card mb-4">
+                                <div class="card-header bg-success text-white">
+                                    <h5 class="mb-0"><i class="fas fa-school me-2"></i>School Information</h5>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <label for="reg-fullname" class="form-label">Full Name</label>
-                                    <InputText id="reg-fullname" class="form-control text-uppercase" @bind-Value="registerRequest.FullName" @oninput="OnFullNameChanged" placeholder="Enter full name" />
-                                    <ValidationMessage For="@(() => registerRequest.FullName)" class="text-danger" />
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="reg-region" class="form-label">Region</label>
+                                            <InputSelect id="reg-region" class="form-select" @bind-Value="registerRequest.Region" @bind-Value:after="OnRegionChanged">
+                                                <option value="">Select Region</option>
+                                                @foreach (var region in regions)
+                                                {
+                                                    <option value="@region">@region</option>
+                                                }
+                                                <option value="manual">+ Add New Region</option>
+                                            </InputSelect>
+                                            @if (registerRequest.Region == "manual")
+                                            {
+                                                <InputText class="form-control mt-2 text-uppercase" @bind-Value="manualRegion" @oninput="OnManualRegionChanged" placeholder="Enter region name manually" />
+                                            }
+                                            <ValidationMessage For="@(() => registerRequest.Region)" class="text-danger" />
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="reg-division" class="form-label">Division</label>
+                                            <InputSelect id="reg-division" class="form-select" @bind-Value="registerRequest.Division" @bind-Value:after="OnDivisionChanged" disabled="@(string.IsNullOrEmpty(registerRequest.Region))">
+                                                <option value="">Select Division</option>
+                                                @foreach (var division in divisions)
+                                                {
+                                                    <option value="@division">@division</option>
+                                                }
+                                                <option value="manual">+ Add New Division</option>
+                                            </InputSelect>
+                                            @if (registerRequest.Division == "manual")
+                                            {
+                                                <InputText class="form-control mt-2 text-uppercase" @bind-Value="manualDivision" @oninput="OnManualDivisionChanged" placeholder="Enter division name manually" />
+                                            }
+                                            <ValidationMessage For="@(() => registerRequest.Division)" class="text-danger" />
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label for="reg-district" class="form-label">District (Optional)</label>
+                                            <InputSelect id="reg-district" class="form-select" @bind-Value="registerRequest.District" @bind-Value:after="OnDistrictChanged" disabled="@(string.IsNullOrEmpty(registerRequest.Division))">
+                                                <option value="">Select District (Optional)</option>
+                                                @foreach (var district in districts)
+                                                {
+                                                    <option value="@district">@district</option>
+                                                }
+                                                <option value="manual">+ Add New District</option>
+                                            </InputSelect>
+                                            @if (registerRequest.District == "manual")
+                                            {
+                                                <InputText class="form-control mt-2 text-uppercase" @bind-Value="manualDistrict" @oninput="OnManualDistrictChanged" placeholder="Enter district name manually" />
+                                            }
+                                            <ValidationMessage For="@(() => registerRequest.District)" class="text-danger" />
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="reg-schoolname" class="form-label">School Name</label>
+                                            <div class="position-relative">
+                                                <InputText id="reg-schoolname" class="form-control text-uppercase" @bind-Value="registerRequest.SchoolName" @oninput="OnSchoolNameChanged" placeholder="Enter school name" />
+                                                @if (schoolSuggestions.Any() && showSchoolSuggestions)
+                                                {
+                                                    <div class="list-group position-absolute w-100" style="z-index: 1000; max-height: 200px; overflow-y: auto;">
+                                                        @foreach (var school in schoolSuggestions)
+                                                        {
+                                                            <button type="button" class="list-group-item list-group-item-action" @onclick="() => SelectSchool(school.SchoolName)">
+                                                                <div class="fw-bold">@school.SchoolName</div>
+                                                                <small class="text-muted">@school.Region, @school.Division</small>
+                                                            </button>
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
+                                            <ValidationMessage For="@(() => registerRequest.SchoolName)" class="text-danger" />
+                                        </div>
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-4 mb-3">
+                                            <label for="reg-gradelevel" class="form-label">Grade Level</label>
+                                            <InputSelect id="reg-gradelevel" class="form-select" @bind-Value="registerRequest.GradeLevel" @bind-Value:after="OnGradeLevelChanged">
+                                                <option value="0">Select Grade Level</option>
+                                                <option value="7">Grade 7</option>
+                                                <option value="8">Grade 8</option>
+                                                <option value="9">Grade 9</option>
+                                                <option value="10">Grade 10</option>
+                                                <option value="11">Grade 11</option>
+                                                <option value="12">Grade 12</option>
+                                            </InputSelect>
+                                            <ValidationMessage For="@(() => registerRequest.GradeLevel)" class="text-danger" />
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label for="reg-section" class="form-label">Section</label>
+                                            <InputText id="reg-section" class="form-control text-uppercase" @bind-Value="registerRequest.Section" @oninput="OnSectionChanged" placeholder="Enter section" />
+                                            <ValidationMessage For="@(() => registerRequest.Section)" class="text-danger" />
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            @if (registerRequest.GradeLevel == 11 || registerRequest.GradeLevel == 12)
+                                            {
+                                                <label for="reg-strand" class="form-label">Strand</label>
+                                                <InputText id="reg-strand" class="form-control" @bind-Value="registerRequest.Strand" placeholder="Enter strand (e.g., STEM, ABM, HUMSS, GAS)" />
+                                            }
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="reg-region" class="form-label">Region</label>
-                                <InputSelect id="reg-region" class="form-select" @bind-Value="registerRequest.Region" @bind-Value:after="OnRegionChanged">
-                                    <option value="">Select Region</option>
-                                    @foreach (var region in regions)
-                                    {
-                                        <option value="@region">@region</option>
-                                    }
-                                    <option value="manual">+ Add New Region</option>
-                                </InputSelect>
-                                @if (registerRequest.Region == "manual")
-                                {
-                                    <InputText class="form-control mt-2" @bind-Value="manualRegion" placeholder="Enter region name manually" />
-                                }
-                                <ValidationMessage For="@(() => registerRequest.Region)" class="text-danger" />
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="reg-division" class="form-label">Division</label>
-                                <InputSelect id="reg-division" class="form-select" @bind-Value="registerRequest.Division" @bind-Value:after="OnDivisionChanged" disabled="@(string.IsNullOrEmpty(registerRequest.Region))">
-                                    <option value="">Select Division</option>
-                                    @foreach (var division in divisions)
-                                    {
-                                        <option value="@division">@division</option>
-                                    }
-                                    <option value="manual">+ Add New Division</option>
-                                </InputSelect>
-                                @if (registerRequest.Division == "manual")
-                                {
-                                    <InputText class="form-control mt-2" @bind-Value="manualDivision" placeholder="Enter division name manually" />
-                                }
-                                <small class="text-danger">Division Debug: "@registerRequest.Division" == "manual" = @(registerRequest.Division == "manual")</small>
-                                <ValidationMessage For="@(() => registerRequest.Division)" class="text-danger" />
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="reg-district" class="form-label">District (Optional)</label>
-                                <InputSelect id="reg-district" class="form-select" @bind-Value="registerRequest.District" @bind-Value:after="OnDistrictChanged" disabled="@(string.IsNullOrEmpty(registerRequest.Division))">
-                                    <option value="">Select District (Optional)</option>
-                                    @foreach (var district in districts)
-                                    {
-                                        <option value="@district">@district</option>
-                                    }
-                                    <option value="manual">+ Add New District</option>
-                                </InputSelect>
-                                @if (registerRequest.District == "manual")
-                                {
-                                    <InputText class="form-control mt-2" @bind-Value="manualDistrict" placeholder="Enter district name manually" />
-                                }
-                                <small class="text-danger">District Debug: "@registerRequest.District" == "manual" = @(registerRequest.District == "manual")</small>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="reg-schoolname" class="form-label">School Name</label>
-                                <InputText id="reg-schoolname" class="form-control" @bind-Value="registerRequest.SchoolName" placeholder="Enter school name" />
-                                <ValidationMessage For="@(() => registerRequest.SchoolName)" class="text-danger" />
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="reg-schooladdress" class="form-label">School Address (Optional)</label>
-                                <InputTextArea id="reg-schooladdress" class="form-control" @bind-Value="registerRequest.SchoolAddress" placeholder="Enter school address" rows="2" />
                             </div>
 
                             @if (!string.IsNullOrEmpty(errorMessage))
@@ -220,6 +276,10 @@
     private string manualDivision = "";
     private string manualDistrict = "";
 
+    // School suggestions
+    private List<SchoolInfo> schoolSuggestions = new();
+    private bool showSchoolSuggestions = false;
+
     protected override async Task OnInitializedAsync()
     {
         // Check if user is already logged in
@@ -231,6 +291,11 @@
 
         // Load regions for registration
         await LoadRegions();
+    }
+
+    public void Dispose()
+    {
+        // Cleanup if needed
     }
 
     private void SwitchTab(bool showLogin)
@@ -253,6 +318,26 @@
     private void OnFullNameChanged(ChangeEventArgs e)
     {
         registerRequest.FullName = e.Value?.ToString()?.ToUpper() ?? "";
+    }
+
+    private void OnSectionChanged(ChangeEventArgs e)
+    {
+        registerRequest.Section = e.Value?.ToString()?.ToUpper() ?? "";
+    }
+
+    private void OnManualRegionChanged(ChangeEventArgs e)
+    {
+        manualRegion = e.Value?.ToString()?.ToUpper() ?? "";
+    }
+
+    private void OnManualDivisionChanged(ChangeEventArgs e)
+    {
+        manualDivision = e.Value?.ToString()?.ToUpper() ?? "";
+    }
+
+    private void OnManualDistrictChanged(ChangeEventArgs e)
+    {
+        manualDistrict = e.Value?.ToString()?.ToUpper() ?? "";
     }
 
     private void OnLoginUsernameChanged(ChangeEventArgs e)
@@ -287,7 +372,7 @@
                 errorMessage = response.Message;
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             errorMessage = "An error occurred during login. Please try again.";
         }
@@ -346,7 +431,7 @@
                 errorMessage = errorResult?.Message ?? "Registration failed";
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             errorMessage = "An error occurred during registration. Please try again.";
         }
@@ -364,7 +449,7 @@
             var response = await Http.GetFromJsonAsync<List<string>>("api/register/regions");
             regions = response ?? new List<string>();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             // Handle error silently for now
         }
@@ -420,6 +505,63 @@
     {
         Console.WriteLine($"District changed to: {registerRequest.District}");
         Console.WriteLine($"District == 'manual': {registerRequest.District == "manual"}");
+        StateHasChanged();
+    }
+
+    private void OnGradeLevelChanged()
+    {
+        // Clear strand if grade level is not 11 or 12
+        if (registerRequest.GradeLevel != 11 && registerRequest.GradeLevel != 12)
+        {
+            registerRequest.Strand = null;
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnSchoolNameChanged(ChangeEventArgs e)
+    {
+        var schoolName = e.Value?.ToString()?.ToUpper() ?? "";
+        registerRequest.SchoolName = schoolName;
+
+        if (string.IsNullOrEmpty(schoolName) || schoolName.Length < 2)
+        {
+            schoolSuggestions.Clear();
+            showSchoolSuggestions = false;
+        }
+        else
+        {
+            await LoadSchoolSuggestions(schoolName);
+        }
+        
+        StateHasChanged();
+    }
+
+    private void SelectSchool(string schoolName)
+    {
+        registerRequest.SchoolName = schoolName.ToUpper();
+        schoolSuggestions.Clear();
+        showSchoolSuggestions = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadSchoolSuggestions(string schoolName)
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<SchoolInfo>>($"api/register/schools/search?name={Uri.EscapeDataString(schoolName)}");
+            schoolSuggestions = response?.Take(5).ToList() ?? new List<SchoolInfo>();
+            showSchoolSuggestions = schoolSuggestions.Any();
+        }
+        catch (Exception)
+        {
+            schoolSuggestions.Clear();
+            showSchoolSuggestions = false;
+        }
+    }
+
+    private void HideSchoolSuggestions()
+    {
+        showSchoolSuggestions = false;
         StateHasChanged();
     }
 

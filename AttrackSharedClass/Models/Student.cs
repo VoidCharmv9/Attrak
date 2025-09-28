@@ -30,6 +30,11 @@ namespace AttrackSharedClass.Models
         [Required]
         public string SchoolId { get; set; } = string.Empty;
         
+        [Required]
+        [Phone]
+        [MaxLength(20)]
+        public string ParentsNumber { get; set; } = string.Empty;
+        
         public string? QRImage { get; set; }
         
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
