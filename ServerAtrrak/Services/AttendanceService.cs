@@ -127,8 +127,8 @@ namespace ServerAtrrak.Services
                     var studentId = reader.GetString(0);
                     var studentName = reader.GetString(1);
                     var attendanceDate = reader.GetDateTime(2);
-                    var timeIn = reader.IsDBNull(3) ? (TimeSpan?)null : reader.GetTimeSpan(3);
-                    var timeOut = reader.IsDBNull(4) ? (TimeSpan?)null : reader.GetTimeSpan(4);
+                    var timeIn = reader.IsDBNull(3) ? (TimeSpan?)null : ((MySql.Data.MySqlClient.MySqlDataReader)reader).GetTimeSpan(3);
+                    var timeOut = reader.IsDBNull(4) ? (TimeSpan?)null : ((MySql.Data.MySqlClient.MySqlDataReader)reader).GetTimeSpan(4);
                     var status = reader.GetString(5);
                     var remarks = reader.IsDBNull(6) ? null : reader.GetString(6);
 
