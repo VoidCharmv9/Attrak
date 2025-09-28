@@ -48,4 +48,5 @@ namespace AttrackSharedClass.Models
         public string Message { get; set; } = string.Empty;
         public string? Remarks { get; set; }
     }
+
 }

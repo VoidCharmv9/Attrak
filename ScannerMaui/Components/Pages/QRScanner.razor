@@ -41,41 +41,32 @@
             <div class="card">
                 <div class="card-header py-2">
                     <h6 class="mb-0">
-                        <i class="fas fa-clock me-2"></i>Attendance Type
+                        <i class="fas fa-clock me-2"></i>Select Attendance Type
                     </h6>
                 </div>
                 <div class="card-body py-3">
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <button class="btn btn-success btn-lg w-100 @(attendanceType == "TimeIn" ? "active" : "")" @onclick="@(() => SetAttendanceType("TimeIn"))">
+                        <div class="col-md-6 mb-2">
+                            <button class="btn @(attendanceType == "TimeIn" ? "btn-primary" : "btn-outline-primary") w-100" 
+                                    @onclick="@(() => SetAttendanceType("TimeIn"))">
                                 <i class="fas fa-sign-in-alt me-2"></i>Time In
                             </button>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <button class="btn btn-warning btn-lg w-100 @(attendanceType == "TimeOut" ? "active" : "")" @onclick="@(() => SetAttendanceType("TimeOut"))">
+                        <div class="col-md-6 mb-2">
+                            <button class="btn @(attendanceType == "TimeOut" ? "btn-warning" : "btn-outline-warning") w-100" 
+                                    @onclick="@(() => SetAttendanceType("TimeOut"))">
                                 <i class="fas fa-sign-out-alt me-2"></i>Time Out
                             </button>
                         </div>
                     </div>
                     @if (!string.IsNullOrEmpty(attendanceType))
                     {
-                        <div class="alert alert-info mb-0">
-                            <div class="row align-items-center">
-                                <div class="col">
-                                    <h6 class="mb-1">
-                                        <i class="fas fa-check-circle text-success me-2"></i>@(attendanceType == "TimeIn" ? "Time In" : "Time Out") Mode
-                                    </h6>
-                                    <p class="mb-0 small">
-                                        <span class="badge bg-primary me-1">@DateTime.Now.ToString("HH:mm:ss")</span>
-                                        <span class="badge bg-info">@DateTime.Now.ToString("MMM dd, yyyy")</span>
-                                    </p>
-                                </div>
-                                <div class="col-auto">
-                                    <button class="btn btn-sm btn-outline-secondary" @onclick="ClearAttendanceType">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                </div>
-                            </div>
+                        <div class="alert alert-success py-2 mt-2">
+                            <small>
+                                <i class="fas fa-check-circle me-1"></i>
+                                <strong>Selected:</strong> @(attendanceType == "TimeIn" ? "Time In" : "Time Out")
+                                <span class="badge bg-primary ms-2">@DateTime.Now.ToString("HH:mm:ss")</span>
+                            </small>
                         </div>
                     }
                 </div>
@@ -84,8 +75,6 @@
     </div>
 
     <!-- Scanner Section -->
-    @if (!string.IsNullOrEmpty(attendanceType))
-    {
         <div class="row p-2 flex-grow-1">
             <div class="col-12">
                 <div class="card h-100">
@@ -94,27 +83,16 @@
                             <h6 class="mb-0">
                                 <i class="fas fa-qrcode me-2"></i>Scan Student QR Code
                             </h6>
-                            <button class="btn btn-sm btn-outline-secondary" @onclick="ClearAttendanceType">
-                                <i class="fas fa-exchange-alt me-1"></i>Switch Mode
-                            </button>
                         </div>
                         <div class="mt-2">
                             <div class="d-flex flex-wrap gap-1">
-                                <span class="badge @(attendanceType == "TimeIn" ? "bg-success" : "bg-warning")">@(attendanceType == "TimeIn" ? "Time In" : "Time Out")</span>
                                 <span class="badge bg-primary">@DateTime.Now.ToString("HH:mm:ss")</span>
                                 <span class="badge bg-info">@DateTime.Now.ToString("MMM dd, yyyy")</span>
                             </div>
                             <div class="mt-2">
                                 <small class="text-muted">
                                     <i class="fas fa-info-circle me-1"></i>
-                                    @if (attendanceType == "TimeOut")
-                                    {
-                                        <text>7:30-12:00 = Half Day | 12:00-4:30 = Half Day | 7:30-4:30 = Whole Day | Late after 7:31 AM</text>
-                                    }
-                                    else
-                                    {
-                                        <text>Scan student QR code to mark Time In (Late after 7:31 AM)</text>
-                                    }
+                                    Select Time In or Time Out above, then scan QR code | 7:30-12:00 = Half Day | 12:00-4:30 = Half Day | 7:30-4:30 = Whole Day | Late after 7:31 AM
                                 </small>
                             </div>
                         </div>
@@ -122,7 +100,22 @@
                     <div class="card-body d-flex flex-column py-2">
                         <!-- QR Scanner Component -->
                         <div class="scanner-container flex-grow-1 bg-light rounded mb-3 d-flex align-items-center justify-content-center" style="min-height: 250px;">
-                            @if (isScanning)
+                            @if (string.IsNullOrEmpty(attendanceType))
+                            {
+                                <div class="text-center">
+                                    <!-- QR Code Icon -->
+                                    <div class="mb-4">
+                                        <i class="fas fa-hand-pointer fa-4x text-warning"></i>
+                                    </div>
+                                    
+                                    <!-- Title -->
+                                    <h5 class="mb-3 text-dark">Select Attendance Type First</h5>
+                                    
+                                    <!-- Description -->
+                                    <p class="mb-4 text-muted">Please select Time In or Time Out above to start scanning</p>
+                                </div>
+                            }
+                            else if (isScanning)
                             {
                                 <div class="text-center">
                                     <!-- Scanning Animation -->
@@ -134,7 +127,7 @@
                                     </div>
                                     
                                     <!-- Scanning Status -->
-                                    <h5 class="mb-3 text-success">Scanning...</h5>
+                                    <h5 class="mb-3 text-success">Scanning for @(attendanceType == "TimeIn" ? "Time In" : "Time Out")...</h5>
                                     
                                     <!-- Description -->
                                     <p class="mb-4 text-muted">Point camera at student QR code</p>
@@ -145,19 +138,7 @@
                                             <i class="fas fa-info-circle me-1"></i>
                                             <strong>Current Time:</strong> @DateTime.Now.ToString("HH:mm:ss")<br/>
                                             <strong>Date:</strong> @DateTime.Now.ToString("MMM dd, yyyy")<br/>
-                                            @if (attendanceType == "TimeOut")
-                                            {
-                                                <text><strong>Time Out Rules:</strong><br/>
-                                                7:30-12:00 = Half Day<br/>
-                                                12:00-4:30 = Half Day<br/>
-                                                7:30-4:30 = Whole Day<br/>
-                                                Late after 7:31 AM</text>
-                                            }
-                                            else
-                                            {
-                                                <text><strong>Time In Rules:</strong><br/>
-                                                Late after 7:31 AM</text>
-                                            }
+                                            <strong>Mode:</strong> @(attendanceType == "TimeIn" ? "Time In" : "Time Out")
                                         </small>
                                     </div>
                                     
@@ -223,10 +204,10 @@
                                     </div>
                                     
                                     <!-- Title -->
-                                    <h5 class="mb-3 text-dark">QR Code Scanner</h5>
+                                    <h5 class="mb-3 text-dark">Ready to Scan</h5>
                                     
                                     <!-- Description -->
-                                    <p class="mb-4 text-muted">Start continuous scanning for student attendance</p>
+                                    <p class="mb-4 text-muted">Start scanning for @(attendanceType == "TimeIn" ? "Time In" : "Time Out")</p>
                                     
                                     <!-- Start Scanning Button -->
                                     <button class="btn btn-success btn-lg px-3 py-2 w-100" @onclick="StartContinuousScanning">
@@ -240,77 +221,7 @@
                 </div>
             </div>
         </div>
-    }
 
-    <!-- Student Information Display -->
-    @if (showStudentInfo && scannedStudentInfo != null)
-    {
-        <div class="row p-2">
-            <div class="col-12">
-                <div class="card border-primary">
-                    <div class="card-header bg-primary text-white py-2">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h6 class="mb-0">
-                                <i class="fas fa-user-graduate me-2"></i>Student Information
-                            </h6>
-                            <button class="btn btn-sm btn-outline-light" @onclick="CloseStudentInfo">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="card-body py-3">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <h5 class="text-primary mb-2">@scannedStudentInfo.FullName</h5>
-                                    <p class="mb-1">
-                                        <strong>Student ID:</strong> @scannedStudentInfo.StudentId
-                                    </p>
-                                    <p class="mb-1">
-                                        <strong>Grade:</strong> @scannedStudentInfo.GradeLevel
-                                    </p>
-                                    <p class="mb-1">
-                                        <strong>Section:</strong> @scannedStudentInfo.Section
-                                    </p>
-                                    @if (!string.IsNullOrEmpty(scannedStudentInfo.Strand))
-                                    {
-                                        <p class="mb-1">
-                                            <strong>Strand:</strong> @scannedStudentInfo.Strand
-                                        </p>
-                                    }
-                                    <p class="mb-0">
-                                        <strong>School:</strong> @scannedStudentInfo.SchoolName
-                                    </p>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                @if (!string.IsNullOrEmpty(scannedStudentInfo.QRCodeData))
-                                {
-                                    <div class="text-center">
-                                        <h6 class="mb-2">QR Code</h6>
-                                        <img src="data:image/png;base64,@scannedStudentInfo.QRCodeData" 
-                                             alt="Student QR Code" 
-                                             class="img-fluid" 
-                                             style="max-width: 150px; max-height: 150px;" />
-                                    </div>
-                                }
-                            </div>
-                        </div>
-                        <div class="row mt-3">
-                            <div class="col-12 text-center">
-                                <button class="btn btn-success btn-lg me-2" @onclick="MarkAttendanceForStudent">
-                                    <i class="fas fa-check-circle me-2"></i>Mark Attendance
-                                </button>
-                                <button class="btn btn-secondary btn-lg" @onclick="CloseStudentInfo">
-                                    <i class="fas fa-times me-2"></i>Close
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    }
 
     <!-- Attendance List -->
     @if (attendanceList?.Any() == true)
@@ -551,8 +462,6 @@
     private bool isScanning = false;
     private bool isProcessing = false;
     private AttendanceRecord? lastScanResult = null;
-    private StudentDisplayInfo? scannedStudentInfo = null;
-    private bool showStudentInfo = false;
     
     // Timer for updating current time display
     private Timer? timeUpdateTimer;
@@ -635,21 +544,6 @@
 
 
 
-    private void SetAttendanceType(string type)
-    {
-        attendanceType = type;
-        attendanceList.Clear();
-        message = string.Empty;
-        StateHasChanged();
-    }
-
-    private void ClearAttendanceType()
-    {
-        attendanceType = string.Empty;
-        attendanceList.Clear();
-        message = string.Empty;
-        StateHasChanged();
-    }
 
 
     private async Task LoadTodayAttendance()
@@ -665,13 +559,52 @@
             System.Diagnostics.Debug.WriteLine($"LoadTodayAttendance: Loading for teacher {currentTeacher.TeacherId}");
             
             var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
-            var response = await httpClient.GetFromJsonAsync<List<AttendanceRecord>>(
-                $"api/attendance/today/{currentTeacher.TeacherId}");
+            var response = await httpClient.GetFromJsonAsync<List<DailyAttendanceRecord>>(
+                $"api/dailyattendance/today/{currentTeacher.TeacherId}");
             
             if (response != null)
             {
-                attendanceList = response;
-                System.Diagnostics.Debug.WriteLine($"LoadTodayAttendance: Loaded {response.Count} records for teacher {currentTeacher.TeacherId}");
+                // Convert DailyAttendanceRecord to AttendanceRecord for compatibility
+                attendanceList = response.SelectMany(record => 
+                {
+                    var records = new List<AttendanceRecord>();
+                    
+                    // Add Time In record if exists
+                    if (!string.IsNullOrEmpty(record.TimeIn))
+                    {
+                        records.Add(new AttendanceRecord
+                        {
+                            StudentId = record.StudentId,
+                            StudentName = record.StudentName,
+                            Timestamp = record.Date.Date.Add(TimeSpan.Parse(record.TimeIn)),
+                            IsValid = true,
+                            Status = record.Status,
+                            AttendanceType = "TimeIn",
+                            Message = "Time In recorded",
+                            Remarks = record.Remarks
+                        });
+                    }
+                    
+                    // Add Time Out record if exists
+                    if (!string.IsNullOrEmpty(record.TimeOut))
+                    {
+                        records.Add(new AttendanceRecord
+                        {
+                            StudentId = record.StudentId,
+                            StudentName = record.StudentName,
+                            Timestamp = record.Date.Date.Add(TimeSpan.Parse(record.TimeOut)),
+                            IsValid = true,
+                            Status = record.Status,
+                            AttendanceType = "TimeOut",
+                            Message = "Time Out recorded",
+                            Remarks = record.Remarks
+                        });
+                    }
+                    
+                    return records;
+                }).ToList();
+                
+                System.Diagnostics.Debug.WriteLine($"LoadTodayAttendance: Loaded {response.Count} daily records, converted to {attendanceList.Count} attendance records for teacher {currentTeacher.TeacherId}");
             }
             else
             {
@@ -689,195 +622,6 @@
 
 
 
-    private async Task ProcessStudentQRCode(string studentId)
-    {
-        try
-        {
-            if (string.IsNullOrEmpty(attendanceType) || currentTeacher == null) return;
-
-            // Set current student ID for remarks calculation
-            currentStudentId = studentId;
-
-            // First, reload today's attendance to get the latest data
-            await LoadTodayAttendance();
-
-            // Check for existing attendance
-            var today = DateTime.Today;
-            var hasTimeIn = attendanceList.Any(a => 
-                a.StudentId == studentId && 
-                a.AttendanceType == "TimeIn" && 
-                a.Timestamp.Date == today);
-            var hasTimeOut = attendanceList.Any(a => 
-                a.StudentId == studentId && 
-                a.AttendanceType == "TimeOut" && 
-                a.Timestamp.Date == today);
-
-            // Validate attendance logic
-            if (attendanceType == "TimeIn" && hasTimeIn)
-            {
-                lastScanResult = new AttendanceRecord
-                {
-                    StudentId = studentId,
-                    StudentName = "Student",
-                    Timestamp = DateTime.Now,
-                    IsValid = false,
-                    Status = "Already Time In",
-                    AttendanceType = "TimeIn",
-                    Message = "Student already has Time In for today."
-                };
-                message = "Student already has Time In for today.";
-                isSuccess = false;
-                StateHasChanged();
-                return;
-            }
-
-            if (attendanceType == "TimeOut" && hasTimeOut)
-            {
-                lastScanResult = new AttendanceRecord
-                {
-                    StudentId = studentId,
-                    StudentName = "Student",
-                    Timestamp = DateTime.Now,
-                    IsValid = false,
-                    Status = "Already Time Out",
-                    AttendanceType = "TimeOut",
-                    Message = "Student already has Time Out for today."
-                };
-                message = "Student already has Time Out for today.";
-                isSuccess = false;
-                StateHasChanged();
-                return;
-            }
-
-            if (attendanceType == "TimeOut" && !hasTimeIn)
-            {
-                lastScanResult = new AttendanceRecord
-                {
-                    StudentId = studentId,
-                    StudentName = "Student",
-                    Timestamp = DateTime.Now,
-                    IsValid = false,
-                    Status = "No Time In",
-                    AttendanceType = "TimeOut",
-                    Message = "Student must have Time In before Time Out."
-                };
-                message = "Student must have Time In before Time Out.";
-                isSuccess = false;
-                StateHasChanged();
-                return;
-            }
-
-            // Set processing state
-            isProcessing = true;
-            isScanning = false;
-            StateHasChanged();
-
-            var currentTime = DateTime.Now;
-            var remarks = DetermineRemarks(currentTime);
-            
-            System.Diagnostics.Debug.WriteLine($"Sending attendance request with timestamp: {currentTime:yyyy-MM-dd HH:mm:ss}");
-            
-            var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
-            var request = new AttendanceRequest
-            {
-                StudentId = studentId,
-                TeacherId = currentTeacher.TeacherId,
-                SchoolId = currentTeacher.SchoolId ?? "",
-                Timestamp = currentTime,
-                AttendanceType = attendanceType,
-                Remarks = remarks
-            };
-
-            var response = await httpClient.PostAsJsonAsync("api/attendance/mark", request);
-            
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<AttendanceResponse>();
-                if (result?.Success == true)
-                {
-                    // Reload attendance list to get the latest data from server
-                    await LoadTodayAttendance();
-                    
-                    // Create a temporary record for display feedback
-                    var feedbackRecord = new AttendanceRecord
-                    {
-                        StudentId = studentId,
-                        StudentName = result.StudentName ?? "Unknown",
-                        Timestamp = DateTime.Now,
-                        IsValid = result.IsValid,
-                        Status = result.Status,
-                        AttendanceType = result.AttendanceType,
-                        Message = result.Message
-                    };
-                    
-                    lastScanResult = feedbackRecord;
-                    
-                    // Play success sound and show green feedback
-                    if (result.IsValid)
-                    {
-                        await PlaySuccessSound();
-                        message = GetAttendanceMessage(result);
-                        isSuccess = true;
-                    }
-                    else
-                    {
-                        message = result.Message ?? "Failed to mark attendance";
-                        isSuccess = false;
-                    }
-                }
-                else
-                {
-                    lastScanResult = new AttendanceRecord
-                    {
-                        StudentId = studentId,
-                        StudentName = "Unknown",
-                        Timestamp = DateTime.Now,
-                        IsValid = false,
-                        Status = "Error",
-                        AttendanceType = "Unknown",
-                        Message = result?.Message ?? "Failed to mark attendance"
-                    };
-                    message = result?.Message ?? "Failed to mark attendance";
-                    isSuccess = false;
-                }
-            }
-            else
-            {
-                lastScanResult = new AttendanceRecord
-                {
-                    StudentId = studentId,
-                    StudentName = "Unknown",
-                    Timestamp = DateTime.Now,
-                    IsValid = false,
-                    Status = "Error",
-                    AttendanceType = "Unknown",
-                    Message = "Error marking attendance"
-                };
-                message = "Error marking attendance";
-                isSuccess = false;
-            }
-        }
-        catch (Exception ex)
-        {
-            lastScanResult = new AttendanceRecord
-            {
-                StudentId = studentId,
-                StudentName = "Unknown",
-                Timestamp = DateTime.Now,
-                IsValid = false,
-                Status = "Error",
-                AttendanceType = "Unknown",
-                Message = $"Error: {ex.Message}"
-            };
-            message = $"Error: {ex.Message}";
-            isSuccess = false;
-        }
-        finally
-        {
-            isProcessing = false;
-            StateHasChanged();
-        }
-    }
 
     private async Task PlaySuccessSound()
     {
@@ -895,6 +639,65 @@
     private string DetermineRemarks(DateTime currentTime)
     {
         if (attendanceType == "TimeOut")
+        {
+            // Find the Time In record for this student today
+            var today = DateTime.Today;
+            var timeInRecord = attendanceList.FirstOrDefault(a => 
+                a.StudentId == currentStudentId && 
+                a.AttendanceType == "TimeIn" && 
+                a.Timestamp.Date == today);
+            
+            if (timeInRecord != null)
+            {
+                var timeIn = timeInRecord.Timestamp;
+                var timeOut = currentTime;
+                
+                // Check if Time In was late (after 7:31 AM)
+                var sevenThirtyOne = new TimeSpan(7, 31, 0); // 7:31 AM
+                var isLate = timeIn.TimeOfDay >= sevenThirtyOne;
+                
+                // Determine remarks based on time ranges
+                var timeInHour = timeIn.TimeOfDay.Hours;
+                var timeOutHour = timeOut.TimeOfDay.Hours;
+                
+                string dayType;
+                
+                // Check if it's a whole day (7:30 AM - 4:30 PM range)
+                if (timeInHour <= 7 && timeOutHour >= 16) // 7:30 AM to 4:30 PM
+                {
+                    dayType = "Whole Day";
+                }
+                else
+                {
+                    // All other combinations are Half Day
+                    dayType = "Half Day";
+                }
+                
+                return isLate ? $"Late - {dayType}" : dayType;
+            }
+            else
+            {
+                // No Time In found, just use time-based logic as fallback
+                var timeOfDay = currentTime.TimeOfDay;
+                var noon = new TimeSpan(12, 0, 0); // 12:00 PM
+                
+                if (timeOfDay < noon)
+                {
+                    return "Half Day";
+                }
+                else
+                {
+                    return "Whole Day";
+                }
+            }
+        }
+        
+        return ""; // No remarks for Time In
+    }
+
+    private string DetermineRemarksAuto(DateTime currentTime, string autoAttendanceType)
+    {
+        if (autoAttendanceType == "TimeOut")
         {
             // Find the Time In record for this student today
             var today = DateTime.Today;
@@ -992,21 +795,438 @@
 
     private async void OnQRCodeScanned(object? sender, string qrCode)
     {
-        if (!string.IsNullOrEmpty(qrCode))
+        if (!string.IsNullOrEmpty(qrCode) && !string.IsNullOrEmpty(attendanceType))
         {
-            await ShowStudentInfo(qrCode);
+            await ProcessStudentQRCode(qrCode);
         }
     }
 
-    private async Task OpenTimeInCamera()
+    private void SetAttendanceType(string type)
     {
-        await OpenNativeCamera("TimeIn");
+        attendanceType = type;
+        StateHasChanged();
     }
 
-    private async Task OpenTimeOutCamera()
+    private async Task ProcessStudentQRCode(string studentId)
     {
-        await OpenNativeCamera("TimeOut");
+        try
+        {
+            if (currentTeacher == null || string.IsNullOrEmpty(attendanceType)) return;
+
+            // Set current student ID for remarks calculation
+            currentStudentId = studentId;
+
+            // Set processing state
+            isProcessing = true;
+            isScanning = false;
+            StateHasChanged();
+
+            var currentTime = DateTime.Now;
+            var remarks = DetermineRemarks(currentTime);
+            
+            System.Diagnostics.Debug.WriteLine($"Processing {attendanceType} for student {studentId} at {currentTime:yyyy-MM-dd HH:mm:ss}");
+            
+            var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
+            
+            HttpResponseMessage response;
+            
+            if (attendanceType == "TimeIn")
+            {
+                var request = new DailyTimeInRequest
+                {
+                    StudentId = studentId,
+                    Date = currentTime.Date,
+                    TimeIn = currentTime.TimeOfDay
+                };
+
+                System.Diagnostics.Debug.WriteLine($"Sending Time In request - StudentId: {request.StudentId}, Date: {request.Date}, TimeIn: {request.TimeIn}");
+                response = await httpClient.PostAsJsonAsync("api/dailyattendance/daily-timein", request);
+            }
+            else
+            {
+                var request = new DailyTimeOutRequest
+                {
+                    StudentId = studentId,
+                    Date = currentTime.Date,
+                    TimeOut = currentTime.TimeOfDay
+                };
+
+                System.Diagnostics.Debug.WriteLine($"Sending Time Out request - StudentId: {request.StudentId}, Date: {request.Date}, TimeOut: {request.TimeOut}");
+                response = await httpClient.PostAsJsonAsync("api/dailyattendance/daily-timeout", request);
+            }
+            
+            System.Diagnostics.Debug.WriteLine($"API Response Status: {response.StatusCode}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var responseContent = await response.Content.ReadAsStringAsync();
+                System.Diagnostics.Debug.WriteLine($"API Response Content: {responseContent}");
+                
+                if (attendanceType == "TimeIn")
+                {
+                    var result = await response.Content.ReadFromJsonAsync<DailyTimeInResponse>();
+                    System.Diagnostics.Debug.WriteLine($"Parsed Time In Result - Success: {result?.Success}, Message: {result?.Message}");
+                    
+                    if (result?.Success == true)
+                    {
+                        // Reload attendance list to get the latest data from server
+                        await LoadTodayAttendance();
+                        
+                        // Create a temporary record for display feedback
+                        var feedbackRecord = new AttendanceRecord
+                        {
+                            StudentId = studentId,
+                            StudentName = "Student", // We'll get the name from the attendance list
+                            Timestamp = DateTime.Now,
+                            IsValid = true,
+                            Status = result.Status,
+                            AttendanceType = "TimeIn",
+                            Message = result.Message
+                        };
+                        
+                        lastScanResult = feedbackRecord;
+                        
+                        // Play success sound and show green feedback
+                        await PlaySuccessSound();
+                        message = $"Time In marked: {result.TimeIn} ({result.Status})";
+                        isSuccess = true;
+                    }
+                    else
+                    {
+                        lastScanResult = new AttendanceRecord
+                        {
+                            StudentId = studentId,
+                            StudentName = "Unknown",
+                            Timestamp = DateTime.Now,
+                            IsValid = false,
+                            Status = "Error",
+                            AttendanceType = "TimeIn",
+                            Message = result?.Message ?? "Failed to mark Time In"
+                        };
+                        message = result?.Message ?? "Failed to mark Time In";
+                        isSuccess = false;
+                    }
+                }
+                else
+                {
+                    var result = await response.Content.ReadFromJsonAsync<DailyTimeOutResponse>();
+                    System.Diagnostics.Debug.WriteLine($"Parsed Time Out Result - Success: {result?.Success}, Message: {result?.Message}");
+                    
+                    if (result?.Success == true)
+                    {
+                        // Reload attendance list to get the latest data from server
+                        await LoadTodayAttendance();
+                        
+                        // Create a temporary record for display feedback
+                        var feedbackRecord = new AttendanceRecord
+                        {
+                            StudentId = studentId,
+                            StudentName = "Student", // We'll get the name from the attendance list
+                            Timestamp = DateTime.Now,
+                            IsValid = true,
+                            Status = "Present",
+                            AttendanceType = "TimeOut",
+                            Message = result.Message,
+                            Remarks = result.Remarks
+                        };
+                        
+                        lastScanResult = feedbackRecord;
+                        
+                        // Play success sound and show green feedback
+                        await PlaySuccessSound();
+                        message = $"Time Out marked: {result.TimeOut} ({result.Remarks})";
+                        isSuccess = true;
+                    }
+                    else
+                    {
+                        lastScanResult = new AttendanceRecord
+                        {
+                            StudentId = studentId,
+                            StudentName = "Unknown",
+                            Timestamp = DateTime.Now,
+                            IsValid = false,
+                            Status = "Error",
+                            AttendanceType = "TimeOut",
+                            Message = result?.Message ?? "Failed to mark Time Out"
+                        };
+                        message = result?.Message ?? "Failed to mark Time Out";
+                        isSuccess = false;
+                    }
+                }
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                System.Diagnostics.Debug.WriteLine($"API Error Response: {errorContent}");
+                
+                lastScanResult = new AttendanceRecord
+                {
+                    StudentId = studentId,
+                    StudentName = "Unknown",
+                    Timestamp = DateTime.Now,
+                    IsValid = false,
+                    Status = "Error",
+                    AttendanceType = "Unknown",
+                    Message = $"API Error: {response.StatusCode} - {errorContent}"
+                };
+                message = $"API Error: {response.StatusCode}";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            lastScanResult = new AttendanceRecord
+            {
+                StudentId = studentId,
+                StudentName = "Unknown",
+                Timestamp = DateTime.Now,
+                IsValid = false,
+                Status = "Error",
+                AttendanceType = "Unknown",
+                Message = $"Error: {ex.Message}"
+            };
+            message = $"Error: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
     }
+
+    private async Task ProcessStudentQRCodeAuto(string studentId)
+    {
+        try
+        {
+            if (currentTeacher == null) return;
+
+            // Set current student ID for remarks calculation
+            currentStudentId = studentId;
+
+            // First, reload today's attendance to get the latest data
+            await LoadTodayAttendance();
+
+            // Check database directly for existing attendance records
+            var today = DateTime.Today;
+            var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
+            
+            // Check if student has Time In for today
+            var timeInResponse = await httpClient.GetFromJsonAsync<DailyAttendanceStatus>($"api/dailyattendance/daily-status/{studentId}?date={today:yyyy-MM-dd}");
+            var hasTimeIn = timeInResponse?.TimeIn != null;
+            
+            // Check if student has Time Out for today by getting the full record
+            var todayResponse = await httpClient.GetFromJsonAsync<List<DailyAttendanceRecord>>($"api/dailyattendance/today/{currentTeacher.TeacherId}");
+            var hasTimeOut = todayResponse?.Any(r => r.StudentId == studentId && !string.IsNullOrEmpty(r.TimeOut)) == true;
+
+            System.Diagnostics.Debug.WriteLine($"Student {studentId} - HasTimeIn: {hasTimeIn}, HasTimeOut: {hasTimeOut}");
+
+            // Auto-determine attendance type
+            string autoAttendanceType;
+            if (!hasTimeIn)
+            {
+                autoAttendanceType = "TimeIn";
+            }
+            else if (!hasTimeOut)
+            {
+                autoAttendanceType = "TimeOut";
+            }
+            else
+            {
+                // Both Time In and Time Out already exist
+                lastScanResult = new AttendanceRecord
+                {
+                    StudentId = studentId,
+                    StudentName = "Student",
+                    Timestamp = DateTime.Now,
+                    IsValid = false,
+                    Status = "Complete",
+                    AttendanceType = "Complete",
+                    Message = "Student already has complete attendance for today."
+                };
+                message = "Student already has complete attendance for today.";
+                isSuccess = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Set processing state
+            isProcessing = true;
+            isScanning = false;
+            StateHasChanged();
+
+            var currentTime = DateTime.Now;
+            var remarks = DetermineRemarksAuto(currentTime, autoAttendanceType);
+            
+            System.Diagnostics.Debug.WriteLine($"Auto-detected {autoAttendanceType} for student {studentId} at {currentTime:yyyy-MM-dd HH:mm:ss}");
+            
+            HttpResponseMessage response;
+            
+            if (autoAttendanceType == "TimeIn")
+            {
+                var request = new DailyTimeInRequest
+                {
+                    StudentId = studentId,
+                    Date = currentTime.Date,
+                    TimeIn = currentTime.TimeOfDay
+                };
+
+                System.Diagnostics.Debug.WriteLine($"Sending Time In request - StudentId: {request.StudentId}, Date: {request.Date}, TimeIn: {request.TimeIn}");
+                response = await httpClient.PostAsJsonAsync("api/dailyattendance/daily-timein", request);
+            }
+            else
+            {
+                var request = new DailyTimeOutRequest
+                {
+                    StudentId = studentId,
+                    Date = currentTime.Date,
+                    TimeOut = currentTime.TimeOfDay
+                };
+
+                System.Diagnostics.Debug.WriteLine($"Sending Time Out request - StudentId: {request.StudentId}, Date: {request.Date}, TimeOut: {request.TimeOut}");
+                response = await httpClient.PostAsJsonAsync("api/dailyattendance/daily-timeout", request);
+            }
+            
+            System.Diagnostics.Debug.WriteLine($"API Response Status: {response.StatusCode}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var responseContent = await response.Content.ReadAsStringAsync();
+                System.Diagnostics.Debug.WriteLine($"API Response Content: {responseContent}");
+                
+                if (autoAttendanceType == "TimeIn")
+                {
+                    var result = await response.Content.ReadFromJsonAsync<DailyTimeInResponse>();
+                    System.Diagnostics.Debug.WriteLine($"Parsed Time In Result - Success: {result?.Success}, Message: {result?.Message}");
+                    
+                    if (result?.Success == true)
+                    {
+                        // Reload attendance list to get the latest data from server
+                        await LoadTodayAttendance();
+                        
+                        // Create a temporary record for display feedback
+                        var feedbackRecord = new AttendanceRecord
+                        {
+                            StudentId = studentId,
+                            StudentName = "Student", // We'll get the name from the attendance list
+                            Timestamp = DateTime.Now,
+                            IsValid = true,
+                            Status = result.Status,
+                            AttendanceType = "TimeIn",
+                            Message = result.Message
+                        };
+                        
+                        lastScanResult = feedbackRecord;
+                        
+                        // Play success sound and show green feedback
+                        await PlaySuccessSound();
+                        message = $"Time In marked: {result.TimeIn} ({result.Status})";
+                        isSuccess = true;
+                    }
+                    else
+                    {
+                        lastScanResult = new AttendanceRecord
+                        {
+                            StudentId = studentId,
+                            StudentName = "Unknown",
+                            Timestamp = DateTime.Now,
+                            IsValid = false,
+                            Status = "Error",
+                            AttendanceType = "TimeIn",
+                            Message = result?.Message ?? "Failed to mark Time In"
+                        };
+                        message = result?.Message ?? "Failed to mark Time In";
+                        isSuccess = false;
+                    }
+                }
+                else
+                {
+                    var result = await response.Content.ReadFromJsonAsync<DailyTimeOutResponse>();
+                    System.Diagnostics.Debug.WriteLine($"Parsed Time Out Result - Success: {result?.Success}, Message: {result?.Message}");
+                    
+                    if (result?.Success == true)
+                    {
+                        // Reload attendance list to get the latest data from server
+                        await LoadTodayAttendance();
+                        
+                        // Create a temporary record for display feedback
+                        var feedbackRecord = new AttendanceRecord
+                        {
+                            StudentId = studentId,
+                            StudentName = "Student", // We'll get the name from the attendance list
+                            Timestamp = DateTime.Now,
+                            IsValid = true,
+                            Status = "Present",
+                            AttendanceType = "TimeOut",
+                            Message = result.Message,
+                            Remarks = result.Remarks
+                        };
+                        
+                        lastScanResult = feedbackRecord;
+                        
+                        // Play success sound and show green feedback
+                        await PlaySuccessSound();
+                        message = $"Time Out marked: {result.TimeOut} ({result.Remarks})";
+                        isSuccess = true;
+                    }
+                    else
+                    {
+                        lastScanResult = new AttendanceRecord
+                        {
+                            StudentId = studentId,
+                            StudentName = "Unknown",
+                            Timestamp = DateTime.Now,
+                            IsValid = false,
+                            Status = "Error",
+                            AttendanceType = "TimeOut",
+                            Message = result?.Message ?? "Failed to mark Time Out"
+                        };
+                        message = result?.Message ?? "Failed to mark Time Out";
+                        isSuccess = false;
+                    }
+                }
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                System.Diagnostics.Debug.WriteLine($"API Error Response: {errorContent}");
+                
+                lastScanResult = new AttendanceRecord
+                {
+                    StudentId = studentId,
+                    StudentName = "Unknown",
+                    Timestamp = DateTime.Now,
+                    IsValid = false,
+                    Status = "Error",
+                    AttendanceType = "Unknown",
+                    Message = $"API Error: {response.StatusCode} - {errorContent}"
+                };
+                message = $"API Error: {response.StatusCode}";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            lastScanResult = new AttendanceRecord
+            {
+                StudentId = studentId,
+                StudentName = "Unknown",
+                Timestamp = DateTime.Now,
+                IsValid = false,
+                Status = "Error",
+                AttendanceType = "Unknown",
+                Message = $"Error: {ex.Message}"
+            };
+            message = $"Error: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
 
     private async Task StartContinuousScanning()
     {
@@ -1063,136 +1283,7 @@
         await StartContinuousScanning();
     }
 
-    private async Task ShowStudentInfo(string studentId)
-    {
-        try
-        {
-            isScanning = false;
-            isProcessing = true;
-            StateHasChanged();
 
-            // Fetch student information from API
-            var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
-            var response = await httpClient.GetFromJsonAsync<StudentDisplayInfo>($"api/register/student-info/{studentId}");
-
-            if (response != null && response.IsValid)
-            {
-                scannedStudentInfo = response;
-                showStudentInfo = true;
-                message = $"Student information loaded: {response.FullName}";
-                isSuccess = true;
-            }
-            else
-            {
-                scannedStudentInfo = new StudentDisplayInfo
-                {
-                    StudentId = studentId,
-                    FullName = "Unknown Student",
-                    GradeLevel = 0,
-                    Section = "Unknown",
-                    SchoolName = "Unknown School",
-                    IsValid = false,
-                    Message = "Student not found in database"
-                };
-                showStudentInfo = true;
-                message = "Student not found in database";
-                isSuccess = false;
-            }
-        }
-        catch (Exception ex)
-        {
-            scannedStudentInfo = new StudentDisplayInfo
-            {
-                StudentId = studentId,
-                FullName = "Error",
-                GradeLevel = 0,
-                Section = "Error",
-                SchoolName = "Error",
-                IsValid = false,
-                Message = $"Error loading student information: {ex.Message}"
-            };
-            showStudentInfo = true;
-            message = $"Error loading student information: {ex.Message}";
-            isSuccess = false;
-        }
-        finally
-        {
-            isProcessing = false;
-            StateHasChanged();
-        }
-    }
-
-    private void CloseStudentInfo()
-    {
-        showStudentInfo = false;
-        scannedStudentInfo = null;
-        message = string.Empty;
-        StateHasChanged();
-    }
-
-    private async Task MarkAttendanceForStudent()
-    {
-        if (scannedStudentInfo == null) return;
-
-        try
-        {
-            isProcessing = true;
-            StateHasChanged();
-
-            await ProcessStudentQRCode(scannedStudentInfo.StudentId);
-            
-            // Close student info after marking attendance
-            CloseStudentInfo();
-        }
-        catch (Exception ex)
-        {
-            message = $"Error marking attendance: {ex.Message}";
-            isSuccess = false;
-        }
-        finally
-        {
-            isProcessing = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task OpenNativeCamera(string type)
-    {
-        try
-        {
-            attendanceType = type;
-            
-            // Show toast message based on type
-            var typeText = type == "TimeIn" ? "Time In" : "Time Out";
-            toastMessage = $"Opening camera for {typeText}...";
-            showToast = true;
-            StateHasChanged();
-            
-            System.Diagnostics.Debug.WriteLine($"QRScannerService.OpenNativeQRScanner() called for {type}");
-            
-            // Direct service call - no JavaScript needed
-            await QRScannerService.OpenNativeQRScanner();
-            
-            System.Diagnostics.Debug.WriteLine("QRScannerService.OpenNativeQRScanner() completed");
-            
-            // Hide toast after 3 seconds
-            await Task.Delay(3000);
-            showToast = false;
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Error in OpenNativeCamera: {ex.Message}");
-            toastMessage = $"Error opening camera: {ex.Message}";
-            showToast = true;
-            StateHasChanged();
-            
-            // Hide error toast after 5 seconds
-            await Task.Delay(5000);
-            showToast = false;
-            StateHasChanged();
-        }
-    }
 
 
 }

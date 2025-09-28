@@ -22,8 +22,12 @@ namespace ServerAtrrak.Controllers
         {
             try
             {
+                _logger.LogInformation("Received attendance request - StudentId: {StudentId}, TeacherId: {TeacherId}, SchoolId: {SchoolId}, AttendanceType: {AttendanceType}, Timestamp: {Timestamp}", 
+                    request.StudentId, request.TeacherId, request.SchoolId, request.AttendanceType, request.Timestamp);
+
                 if (!ModelState.IsValid)
                 {
+                    _logger.LogWarning("Invalid request data for student {StudentId}", request.StudentId);
                     return BadRequest(new AttendanceResponse
                     {
                         Success = false,
@@ -32,6 +36,9 @@ namespace ServerAtrrak.Controllers
                 }
 
                 var result = await _attendanceService.MarkAttendanceAsync(request);
+                
+                _logger.LogInformation("Attendance service result - Success: {Success}, IsValid: {IsValid}, Message: {Message}", 
+                    result.Success, result.IsValid, result.Message);
                 
                 if (result.Success)
                 {
