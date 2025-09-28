@@ -1,0 +1,284 @@
+@page "/teacher-dashboard"
+@using AttrackSharedClass.Models
+
+<PageTitle>Teacher Dashboard - Attrak</PageTitle>
+
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row bg-primary text-white p-3 mb-4">
+        <div class="col-12">
+            <h4 class="mb-2">
+                <i class="fas fa-chalkboard-teacher me-2"></i>Teacher Dashboard
+            </h4>
+            <p class="mb-0 opacity-75">Student Attendance Monitoring System</p>
+        </div>
+    </div>
+
+    <!-- Class Information Card -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-graduation-cap me-2"></i>Class Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Grade Level</h6>
+                                <h4 class="text-primary mb-0">Grade 11</h4>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Section</h6>
+                                <h4 class="text-success mb-0">HUMSS 2</h4>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-center">
+                                <h6 class="text-muted mb-1">Adviser Name</h6>
+                                <h4 class="text-info mb-0">Alimpuangon, Lornilo S.</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attendance Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-users fa-2x mb-2"></i>
+                    <h3 class="mb-1">4</h3>
+                    <p class="mb-0">Total Number of Students</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card bg-warning text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                    <h3 class="mb-1">2</h3>
+                    <p class="mb-0">Students at Risk (Absences)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Attendance Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-dark text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-table me-2"></i>Student Attendance Report
+                        </h5>
+                        <span class="badge bg-light text-dark">
+                            <i class="fas fa-calendar me-1"></i>As of September
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="border-0">Gender</th>
+                                    <th class="border-0">Last Name</th>
+                                    <th class="border-0 text-center">No. of Absences</th>
+                                    <th class="border-0 text-center">Status</th>
+                                    <th class="border-0 text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Male Students -->
+                                <tr class="table-primary">
+                                    <td colspan="5" class="fw-bold text-primary">
+                                        <i class="fas fa-male me-2"></i>Male Students
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="ps-4">
+                                        <i class="fas fa-male text-primary me-2"></i>Male
+                                    </td>
+                                    <td class="fw-semibold">Delacruz</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger fs-6">3</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-flag me-1"></i>Flagged
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-outline-warning">
+                                            <i class="fas fa-eye me-1"></i>View Details
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="ps-4">
+                                        <i class="fas fa-male text-primary me-2"></i>Male
+                                    </td>
+                                    <td class="fw-semibold">Jose</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-success fs-6">1</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check me-1"></i>Good
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-outline-info">
+                                            <i class="fas fa-eye me-1"></i>View Details
+                                        </button>
+                                    </td>
+                                </tr>
+
+                                <!-- Female Students -->
+                                <tr class="table-info">
+                                    <td colspan="5" class="fw-bold text-info">
+                                        <i class="fas fa-female me-2"></i>Female Students
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="ps-4">
+                                        <i class="fas fa-female text-pink me-2"></i>Female
+                                    </td>
+                                    <td class="fw-semibold">Asuncion</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger fs-6">3</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-flag me-1"></i>Flagged
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-outline-warning">
+                                            <i class="fas fa-eye me-1"></i>View Details
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="ps-4">
+                                        <i class="fas fa-female text-pink me-2"></i>Female
+                                    </td>
+                                    <td class="fw-semibold">De Ana</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-warning fs-6">1</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-warning">
+                                            <i class="fas fa-exclamation me-1"></i>1 Absence
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-outline-info">
+                                            <i class="fas fa-eye me-1"></i>View Details
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-center gap-3">
+                <button class="btn btn-primary btn-lg">
+                    <i class="fas fa-download me-2"></i>Export Report
+                </button>
+                <button class="btn btn-info btn-lg">
+                    <i class="fas fa-chart-bar me-2"></i>Generate Analytics
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .text-pink {
+        color: #e91e63 !important;
+    }
+    
+    .table-primary {
+        background-color: rgba(13, 110, 253, 0.1) !important;
+    }
+    
+    .table-info {
+        background-color: rgba(13, 202, 240, 0.1) !important;
+    }
+    
+    .card {
+        border: none;
+        border-radius: 10px;
+    }
+    
+    .card-header {
+        border-radius: 10px 10px 0 0 !important;
+        border: none;
+    }
+    
+    .btn {
+        border-radius: 8px;
+    }
+    
+    .badge {
+        font-size: 0.875rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .table th {
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.875rem;
+        letter-spacing: 0.5px;
+    }
+    
+    .table td {
+        vertical-align: middle;
+    }
+    
+    .fs-6 {
+        font-size: 1rem !important;
+    }
+    
+    /* Mobile Responsive */
+    @@media (max-width: 768px) {
+        .container-fluid {
+            padding: 1rem;
+        }
+        
+        .card-body {
+            padding: 1rem;
+        }
+        
+        .btn-lg {
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+        }
+        
+        .d-flex.gap-3 {
+            flex-direction: column;
+            gap: 0.5rem !important;
+        }
+        
+        .d-flex.gap-3 .btn {
+            width: 100%;
+        }
+    }
+</style>

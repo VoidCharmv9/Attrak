@@ -27,7 +27,7 @@ namespace ServerAtrrak.Controllers
             {
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
-
+                  
                 var query = @"
                     SELECT TimeIn, Status, Remarks 
                     FROM daily_attendance 

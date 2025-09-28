@@ -1,84 +1,58 @@
-@page "/teacher-dashboard"
+@page "/guidance-dashboard"
 @using AttrackSharedClass.Models
 
-<PageTitle>Teacher Dashboard - Attrak</PageTitle>
+<PageTitle>Guidance Dashboard - Attrak</PageTitle>
 
 <div class="container-fluid">
     <!-- Header -->
-    <div class="row bg-primary text-white p-3 mb-4">
+    <div class="row bg-warning text-dark p-3 mb-4">
         <div class="col-12">
             <h4 class="mb-2">
-                <i class="fas fa-chalkboard-teacher me-2"></i>Teacher Dashboard
+                <i class="fas fa-exclamation-triangle me-2"></i>Guidance Dashboard
             </h4>
-            <p class="mb-0 opacity-75">Student Attendance Monitoring System</p>
+            <p class="mb-0 opacity-75">Students at Risk - Attendance Monitoring</p>
         </div>
     </div>
 
-    <!-- Class Information Card -->
+    <!-- Summary Cards -->
     <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-graduation-cap me-2"></i>Class Information
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3">
-                            <div class="text-center">
-                                <h6 class="text-muted mb-1">Grade Level</h6>
-                                <h4 class="text-primary mb-0">Grade 11</h4>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="text-center">
-                                <h6 class="text-muted mb-1">Section</h6>
-                                <h4 class="text-success mb-0">HUMSS 2</h4>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="text-center">
-                                <h6 class="text-muted mb-1">Adviser Name</h6>
-                                <h4 class="text-info mb-0">Alimpuangon, Lornilo S.</h4>
-                            </div>
-                        </div>
-                    </div>
+        <div class="col-md-4">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <i class="fas fa-flag fa-2x mb-2"></i>
+                    <h3 class="mb-1">8</h3>
+                    <p class="mb-0">Total Flagged Students</p>
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- Attendance Summary Cards -->
-    <div class="row mb-4">
-        <div class="col-md-6">
-            <div class="card bg-success text-white">
+        <div class="col-md-4">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <i class="fas fa-graduation-cap fa-2x mb-2"></i>
+                    <h3 class="mb-1">3</h3>
+                    <p class="mb-0">Grade Levels Affected</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-info text-white">
                 <div class="card-body text-center">
                     <i class="fas fa-users fa-2x mb-2"></i>
-                    <h3 class="mb-1">4</h3>
-                    <p class="mb-0">Total Number of Students</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card bg-warning text-white">
-                <div class="card-body text-center">
-                    <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
-                    <h3 class="mb-1">2</h3>
-                    <p class="mb-0">Students at Risk (Absences)</p>
+                    <h3 class="mb-1">5</h3>
+                    <p class="mb-0">Sections Monitored</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Student Attendance Table -->
+    <!-- Flagged Students Table -->
     <div class="row">
         <div class="col-12">
             <div class="card shadow">
-                <div class="card-header bg-dark text-white">
+                <div class="card-header bg-danger text-white">
                     <div class="d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
-                            <i class="fas fa-table me-2"></i>Student Attendance Report
+                            <i class="fas fa-exclamation-triangle me-2"></i>Students at Risk (3+ Absences)
                         </h5>
                         <span class="badge bg-light text-dark">
                             <i class="fas fa-calendar me-1"></i>As of September
@@ -90,25 +64,36 @@
                         <table class="table table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
+                                    <th class="border-0">Grade Level</th>
+                                    <th class="border-0">Section</th>
+                                    <th class="border-0">Student Name</th>
                                     <th class="border-0">Gender</th>
-                                    <th class="border-0">Last Name</th>
-                                    <th class="border-0 text-center">No. of Absences</th>
+                                    <th class="border-0 text-center">Absences</th>
                                     <th class="border-0 text-center">Status</th>
                                     <th class="border-0 text-center">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <!-- Male Students -->
+                                <!-- Grade 11 Students -->
                                 <tr class="table-primary">
-                                    <td colspan="5" class="fw-bold text-primary">
-                                        <i class="fas fa-male me-2"></i>Male Students
+                                    <td colspan="7" class="fw-bold text-primary">
+                                        <i class="fas fa-graduation-cap me-2"></i>Grade 11
+                                    </td>
+                                </tr>
+                                
+                                <!-- HUMSS 2 Section -->
+                                <tr class="table-info">
+                                    <td colspan="7" class="fw-bold text-info ps-4">
+                                        <i class="fas fa-users me-2"></i>HUMSS 2 Section
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td class="ps-4">
-                                        <i class="fas fa-male text-primary me-2"></i>Male
+                                    <td class="ps-5">Grade 11</td>
+                                    <td>HUMSS 2</td>
+                                    <td class="fw-semibold">Delacruz, Juan</td>
+                                    <td>
+                                        <i class="fas fa-male text-primary me-1"></i>Male
                                     </td>
-                                    <td class="fw-semibold">Delacruz</td>
                                     <td class="text-center">
                                         <span class="badge bg-danger fs-6">3</span>
                                     </td>
@@ -124,36 +109,75 @@
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td class="ps-4">
-                                        <i class="fas fa-male text-primary me-2"></i>Male
+                                    <td class="ps-5">Grade 11</td>
+                                    <td>HUMSS 2</td>
+                                    <td class="fw-semibold">Asuncion, Maria</td>
+                                    <td>
+                                        <i class="fas fa-female text-pink me-1"></i>Female
                                     </td>
-                                    <td class="fw-semibold">Jose</td>
                                     <td class="text-center">
-                                        <span class="badge bg-success fs-6">1</span>
+                                        <span class="badge bg-danger fs-6">3</span>
                                     </td>
                                     <td class="text-center">
-                                        <span class="badge bg-success">
-                                            <i class="fas fa-check me-1"></i>Good
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-flag me-1"></i>Flagged
                                         </span>
                                     </td>
                                     <td class="text-center">
-                                        <button class="btn btn-sm btn-outline-info">
+                                        <button class="btn btn-sm btn-outline-warning">
                                             <i class="fas fa-eye me-1"></i>View Details
                                         </button>
                                     </td>
                                 </tr>
 
-                                <!-- Female Students -->
+                                <!-- STEM 1 Section -->
                                 <tr class="table-info">
-                                    <td colspan="5" class="fw-bold text-info">
-                                        <i class="fas fa-female me-2"></i>Female Students
+                                    <td colspan="7" class="fw-bold text-info ps-4">
+                                        <i class="fas fa-users me-2"></i>STEM 1 Section
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td class="ps-4">
-                                        <i class="fas fa-female text-pink me-2"></i>Female
+                                    <td class="ps-5">Grade 11</td>
+                                    <td>STEM 1</td>
+                                    <td class="fw-semibold">Santos, Pedro</td>
+                                    <td>
+                                        <i class="fas fa-male text-primary me-1"></i>Male
                                     </td>
-                                    <td class="fw-semibold">Asuncion</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger fs-6">4</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-flag me-1"></i>Flagged
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-outline-warning">
+                                            <i class="fas fa-eye me-1"></i>View Details
+                                        </button>
+                                    </td>
+                                </tr>
+
+                                <!-- Grade 10 Students -->
+                                <tr class="table-success">
+                                    <td colspan="7" class="fw-bold text-success">
+                                        <i class="fas fa-graduation-cap me-2"></i>Grade 10
+                                    </td>
+                                </tr>
+                                
+                                <!-- ABM 1 Section -->
+                                <tr class="table-info">
+                                    <td colspan="7" class="fw-bold text-info ps-4">
+                                        <i class="fas fa-users me-2"></i>ABM 1 Section
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="ps-5">Grade 10</td>
+                                    <td>ABM 1</td>
+                                    <td class="fw-semibold">Garcia, Ana</td>
+                                    <td>
+                                        <i class="fas fa-female text-pink me-1"></i>Female
+                                    </td>
                                     <td class="text-center">
                                         <span class="badge bg-danger fs-6">3</span>
                                     </td>
@@ -169,20 +193,99 @@
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td class="ps-4">
-                                        <i class="fas fa-female text-pink me-2"></i>Female
+                                    <td class="ps-5">Grade 10</td>
+                                    <td>ABM 1</td>
+                                    <td class="fw-semibold">Reyes, Carlos</td>
+                                    <td>
+                                        <i class="fas fa-male text-primary me-1"></i>Male
                                     </td>
-                                    <td class="fw-semibold">De Ana</td>
                                     <td class="text-center">
-                                        <span class="badge bg-warning fs-6">1</span>
+                                        <span class="badge bg-danger fs-6">5</span>
                                     </td>
                                     <td class="text-center">
-                                        <span class="badge bg-warning">
-                                            <i class="fas fa-exclamation me-1"></i>1 Absence
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-flag me-1"></i>Flagged
                                         </span>
                                     </td>
                                     <td class="text-center">
-                                        <button class="btn btn-sm btn-outline-info">
+                                        <button class="btn btn-sm btn-outline-warning">
+                                            <i class="fas fa-eye me-1"></i>View Details
+                                        </button>
+                                    </td>
+                                </tr>
+
+                                <!-- Grade 9 Students -->
+                                <tr class="table-warning">
+                                    <td colspan="7" class="fw-bold text-warning">
+                                        <i class="fas fa-graduation-cap me-2"></i>Grade 9
+                                    </td>
+                                </tr>
+                                
+                                <!-- Grade 9 - Section A -->
+                                <tr class="table-info">
+                                    <td colspan="7" class="fw-bold text-info ps-4">
+                                        <i class="fas fa-users me-2"></i>Grade 9 - Section A
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="ps-5">Grade 9</td>
+                                    <td>Section A</td>
+                                    <td class="fw-semibold">Lopez, Sofia</td>
+                                    <td>
+                                        <i class="fas fa-female text-pink me-1"></i>Female
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger fs-6">3</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-flag me-1"></i>Flagged
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-outline-warning">
+                                            <i class="fas fa-eye me-1"></i>View Details
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="ps-5">Grade 9</td>
+                                    <td>Section A</td>
+                                    <td class="fw-semibold">Mendoza, Luis</td>
+                                    <td>
+                                        <i class="fas fa-male text-primary me-1"></i>Male
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger fs-6">4</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-flag me-1"></i>Flagged
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-outline-warning">
+                                            <i class="fas fa-eye me-1"></i>View Details
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="ps-5">Grade 9</td>
+                                    <td>Section A</td>
+                                    <td class="fw-semibold">Torres, Elena</td>
+                                    <td>
+                                        <i class="fas fa-female text-pink me-1"></i>Female
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger fs-6">3</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-flag me-1"></i>Flagged
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-sm btn-outline-warning">
                                             <i class="fas fa-eye me-1"></i>View Details
                                         </button>
                                     </td>
@@ -199,11 +302,14 @@
     <div class="row mt-4">
         <div class="col-12">
             <div class="d-flex justify-content-center gap-3">
-                <button class="btn btn-primary btn-lg">
-                    <i class="fas fa-download me-2"></i>Export Report
+                <button class="btn btn-danger btn-lg">
+                    <i class="fas fa-download me-2"></i>Export Flagged Students
+                </button>
+                <button class="btn btn-warning btn-lg">
+                    <i class="fas fa-envelope me-2"></i>Send Parent Notifications
                 </button>
                 <button class="btn btn-info btn-lg">
-                    <i class="fas fa-chart-bar me-2"></i>Generate Analytics
+                    <i class="fas fa-chart-bar me-2"></i>Generate Risk Report
                 </button>
             </div>
         </div>
@@ -221,6 +327,14 @@
     
     .table-info {
         background-color: rgba(13, 202, 240, 0.1) !important;
+    }
+    
+    .table-success {
+        background-color: rgba(25, 135, 84, 0.1) !important;
+    }
+    
+    .table-warning {
+        background-color: rgba(255, 193, 7, 0.1) !important;
     }
     
     .card {
