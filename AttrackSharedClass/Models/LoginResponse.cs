@@ -17,5 +17,6 @@ namespace AttrackSharedClass.Models
         public string? TeacherId { get; set; }
         public string? StudentId { get; set; }
         public DateTime? LastLoginAt { get; set; }
+        public bool IsActive { get; set; } = true;
     }
 }

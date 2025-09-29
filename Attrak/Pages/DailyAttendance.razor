@@ -22,20 +22,6 @@
                     <p class="text-muted mb-0">Teachers can manage student daily attendance</p>
                 </div>
                 <div class="card-body">
-                    @if (!string.IsNullOrEmpty(successMessage))
-                    {
-                        <div class="alert alert-success alert-dismissible fade show" role="alert">
-                            @successMessage
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    }
-                    @if (!string.IsNullOrEmpty(errorMessage))
-                    {
-                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                            @errorMessage
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    }
 
                     <!-- Teacher Info Display -->
                     <div class="row mb-4">
@@ -45,237 +31,177 @@
                                     <i class="fas fa-user-tie me-2"></i>
                                     Current Teacher
                                 </h5>
-                                @if (!string.IsNullOrEmpty(currentTeacherName))
-                                {
-                                    <p class="mb-0">
-                                        <strong>@currentTeacherName</strong>
-                                        <br>
-                                        <small class="text-muted">
-                                            Section: <strong>@currentTeacherSection</strong> | School: <strong>@currentTeacherSchool</strong>
-                                        </small>
-                                        <br>
-                                        <small class="text-muted">Managing student daily attendance</small>
-                                    </p>
-                                }
-                                else
-                                {
-                                    <p class="mb-0 text-muted">No teacher logged in</p>
-                                }
+                                <p class="mb-0">
+                                    <strong>Alimpuangon, Lornilo S.</strong>
+                                    <br>
+                                    <small class="text-muted"> L
+                                        Section: <strong>HUMSS 2</strong> | School: <strong>Koronadal National Comprehensive High School</strong>
+                                    </small>
+                                    <br>
+                                    <small class="text-muted">Managing student daily attendance</small>
+                                </p>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Student Selection -->
-                    <div class="row mb-4">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h6 class="card-title mb-0">
-                                        <i class="fas fa-user-graduate me-2"></i>
-                                        Select Student
-                                    </h6>
-                                </div>
-                                <div class="card-body">
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <label class="form-label">Student:</label>
-                                            <InputSelect class="form-select" @bind-Value="selectedStudentId" @bind-Value:after="OnStudentChanged">
-                                                <option value="">Select a student...</option>
-                                                @foreach (var student in students)
-                                                {
-                                                    <option value="@student.StudentId">@student.FullName - Grade @student.GradeLevel @student.Section</option>
-                                                }
-                                            </InputSelect>
-                                        </div>
-                                        <div class="col-md-6">
-                                            @if (!string.IsNullOrEmpty(selectedStudentName))
-                                            {
-                                                <label class="form-label">Selected Student Info:</label>
-                                                <div class="form-control-plaintext">
-                                                    <strong>@selectedStudentName</strong><br>
-                                                    <small class="text-muted">Grade @selectedStudentGrade - @selectedStudentSection</small>
-                                                </div>
-                                            }
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
-                    @if (!string.IsNullOrEmpty(selectedStudentId))
-                    {
-                        <!-- Date Selection -->
-                        <div class="row mb-4">
-                            <div class="col-md-6">
-                                <label class="form-label">Select Date:</label>
-                                <input type="date" class="form-control" @bind="selectedDate" @bind:after="OnDateChanged" />
-                            </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Current Time:</label>
-                                <div class="form-control-plaintext">
-                                    <i class="fas fa-clock me-2"></i>
-                                    <strong>@DateTime.Now.ToString("hh:mm:ss tt")</strong>
-                                </div>
-                            </div>
-                        </div>
 
-                        <!-- Attendance Status Card -->
+                        <!-- Today's Attendance Summary Cards -->
                         <div class="row mb-4">
-                            <div class="col-12">
-                                <div class="card @(attendanceStatus == "Present" ? "border-success" : attendanceStatus == "Late" ? "border-warning" : "border-secondary")">
+                            <div class="col-md-3">
+                                <div class="card bg-success text-white">
                                     <div class="card-body text-center">
-                                        <h4 class="card-title">
-                                            @if (attendanceStatus == "Present")
-                                            {
-                                                <i class="fas fa-check-circle text-success me-2"></i>
-                                                <span class="text-success">Present</span>
-                                            }
-                                            else if (attendanceStatus == "Late")
-                                            {
-                                                <i class="fas fa-exclamation-triangle text-warning me-2"></i>
-                                                <span class="text-warning">Late</span>
-                                            }
-                                            else
-                                            {
-                                                <i class="fas fa-times-circle text-secondary me-2"></i>
-                                                <span class="text-secondary">Not Marked</span>
-                                            }
-                                        </h4>
-                                        @if (!string.IsNullOrEmpty(timeInTime))
-                                        {
-                                            <p class="card-text">
-                                                <strong>Time In:</strong> @timeInTime
-                                            </p>
-                                        }
-                                        <p class="card-text text-muted">
-                                            <small>@selectedDate.ToString("MMMM dd, yyyy")</small>
-                                        </p>
+                                        <i class="fas fa-check-circle fa-2x mb-2"></i>
+                                        <h3 class="mb-1">3</h3>
+                                        <p class="mb-0">Present Today</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-warning text-white">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                                        <h3 class="mb-1">1</h3>
+                                        <p class="mb-0">Late Today</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-danger text-white">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-clock fa-2x mb-2"></i>
+                                        <h3 class="mb-1">2</h3>
+                                        <p class="mb-0">Time In Only</p>
+                                </div>
+                            </div>
+                        </div>
+                            <div class="col-md-3">
+                                <div class="card bg-info text-white">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-user-check fa-2x mb-2"></i>
+                                        <h3 class="mb-1">1</h3>
+                                        <p class="mb-0">Complete</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Mark Attendance Button -->
+                        <!-- Today's Attendance Records -->
                         <div class="row mb-4">
-                            <div class="col-12 text-center">
-                                @if (attendanceStatus == "Not Marked")
-                                {
-                                    <button class="btn btn-success btn-lg px-5" @onclick="MarkAttendance" disabled="@isProcessing">
-                                        @if (isProcessing)
-                                        {
-                                            <span class="spinner-border spinner-border-sm me-2"></span>
-                                        }
-                                        else
-                                        {
-                                            <i class="fas fa-check-circle me-2"></i>
-                                        }
-                                        Mark Student Present
-                                    </button>
-                                }
-                                else
-                                {
-                                    <div class="alert alert-info">
-                                        <i class="fas fa-info-circle me-2"></i>
-                                        @selectedStudentName has already been marked for today.
-                                    </div>
-                                }
-                            </div>
-                        </div>
-
-                        <!-- Attendance History -->
-                        <div class="row">
                             <div class="col-12">
-                                <h5 class="mb-3">
-                                    <i class="fas fa-history me-2"></i>
-                                    Recent Attendance History
-                                </h5>
-                                @if (isLoadingHistory)
-                                {
-                                    <div class="text-center py-4">
-                                        <div class="spinner-border text-primary" role="status">
-                                            <span class="visually-hidden">Loading...</span>
+                                <div class="card shadow">
+                                    <div class="card-header bg-dark text-white">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h5 class="mb-0">
+                                                <i class="fas fa-calendar-day me-2"></i>Today's Attendance Records
+                                            </h5>
+                                            <span class="badge bg-light text-dark">
+                                                <i class="fas fa-calendar me-1"></i>@DateTime.Today.ToString("MMMM dd, yyyy")
+                                            </span>
                                         </div>
-                                        <p class="mt-2">Loading attendance history...</p>
                                     </div>
-                                }
-                                else if (attendanceHistory.Any())
-                                {
-                                    <div class="table-responsive">
-                                        <table class="table table-hover">
-                                            <thead>
-                                                <tr>
-                                                    <th>Date</th>
-                                                    <th>Day</th>
-                                                    <th>Time In</th>
-                                                    <th>Status</th>
-                                                    <th>Remarks</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach (var record in attendanceHistory)
-                                                {
+                                    <div class="card-body p-0">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover mb-0">
+                                                <thead class="table-light">
                                                     <tr>
-                                                        <td>@record.Date.ToString("MMM dd, yyyy")</td>
-                                                        <td>@record.Date.ToString("dddd")</td>
-                                                        <td>
-                                                            @if (!string.IsNullOrEmpty(record.TimeIn))
-                                                            {
-                                                                <span class="badge bg-primary">@record.TimeIn</span>
-                                                            }
-                                                            else
-                                                            {
-                                                                <span class="text-muted">-</span>
-                                                            }
-                                                        </td>
-                                                        <td>
-                                                            @if (record.Status == "Present")
-                                                            {
-                                                                <span class="badge bg-success">Present</span>
-                                                            }
-                                                            else if (record.Status == "Late")
-                                                            {
-                                                                <span class="badge bg-warning">Late</span>
-                                                            }
-                                                            else
-                                                            {
-                                                                <span class="badge bg-secondary">Absent</span>
-                                                            }
-                                                        </td>
-                                                        <td>
-                                                            @if (!string.IsNullOrEmpty(record.Remarks))
-                                                            {
-                                                                <small class="text-muted">@record.Remarks</small>
-                                                            }
-                                                            else
-                                                            {
-                                                                <span class="text-muted">-</span>
-                                                            }
+                                                        <th class="border-0">Student Name</th>
+                                                        <th class="border-0 text-center">Time In</th>
+                                                        <th class="border-0 text-center">Time Out</th>
+                                                        <th class="border-0 text-center">Status</th>
+                                                        <th class="border-0 text-center">Remarks</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <!-- Present Students -->
+                                                    <tr class="table-success">
+                                                        <td colspan="5" class="fw-bold text-success">
+                                                            <i class="fas fa-check-circle me-2"></i>Present Students
                                                         </td>
                                                     </tr>
-                                                }
-                                            </tbody>
-                                        </table>
+                                                    <tr>
+                                                        <td class="ps-4 fw-semibold">Delacruz, Juan Miguel</td>
+                                                        <td class="text-center">
+                                                            <span class="badge bg-success fs-6">07:25 AM</span>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <span class="badge bg-danger fs-6">04:30 PM</span>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <span class="badge bg-success">
+                                                                <i class="fas fa-check me-1"></i>Present
+                                                            </span>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <span class="badge bg-info">Whole Day</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="ps-4 fw-semibold">Jose, Maria Santos</td>
+                                                        <td class="text-center">
+                                                            <span class="badge bg-success fs-6">07:20 AM</span>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <span class="text-muted">-</span>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <span class="badge bg-success">
+                                                                <i class="fas fa-check me-1"></i>Present
+                                                            </span>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <span class="text-muted">-</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="ps-4 fw-semibold">Asuncion, Pedro Cruz</td>
+                                                        <td class="text-center">
+                                                            <span class="badge bg-success fs-6">07:15 AM</span>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <span class="text-muted">-</span>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <span class="badge bg-success">
+                                                                <i class="fas fa-check me-1"></i>Present
+                                                            </span>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <span class="text-muted">-</span>
+                                                        </td>
+                                                    </tr>
+
+                                                    <!-- Late Students -->
+                                                    <tr class="table-warning">
+                                                        <td colspan="5" class="fw-bold text-warning">
+                                                            <i class="fas fa-exclamation-triangle me-2"></i>Late Students
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td class="ps-4 fw-semibold">De Ana, Ana Marie</td>
+                                                        <td class="text-center">
+                                                            <span class="badge bg-warning fs-6">07:45 AM</span>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <span class="text-muted">-</span>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <span class="badge bg-warning">
+                                                                <i class="fas fa-exclamation me-1"></i>Late
+                                                            </span>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <span class="text-muted">-</span>
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
-                                }
-                                else
-                                {
-                                    <div class="text-center py-4">
-                                        <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
-                                        <p class="text-muted">No attendance records found.</p>
-                                    </div>
-                                }
+                                </div>
                             </div>
                         </div>
-                    }
-                    else
-                    {
-                        <div class="text-center py-5">
-                            <i class="fas fa-user-graduate fa-3x text-muted mb-3"></i>
-                            <h5 class="text-muted">Select a Student</h5>
-                            <p class="text-muted">Please select a student from the dropdown above to manage their daily attendance.</p>
-                        </div>
-                    }
+
                 </div>
             </div>
         </div>
@@ -286,6 +212,7 @@
     // Data
     private List<Student> students = new();
     private List<DailyAttendanceRecord> attendanceHistory = new();
+    private List<DailyAttendanceRecord> todayAttendanceRecords = new();
 
     // UI State
     private string selectedStudentId = "";
@@ -300,6 +227,7 @@
     private string attendanceStatus = "Not Marked";
     private string timeInTime = "";
     private bool isLoadingHistory = false;
+    private bool isLoadingTodayRecords = false;
     private bool isProcessing = false;
 
     // Messages
@@ -308,8 +236,9 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadStudents();
         await LoadCurrentTeacher();
+        await LoadStudents();
+        await LoadTodayAttendanceRecords();
     }
 
     private async Task LoadStudents()
@@ -326,6 +255,29 @@
         catch (Exception)
         {
             errorMessage = "Error loading students list";
+        }
+    }
+
+    private async Task LoadTodayAttendanceRecords()
+    {
+        if (string.IsNullOrEmpty(currentTeacherId)) return;
+
+        isLoadingTodayRecords = true;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<DailyAttendanceRecord>>($"api/dailyattendance/today/{currentTeacherId}");
+            todayAttendanceRecords = response ?? new List<DailyAttendanceRecord>();
+        }
+        catch (Exception)
+        {
+            todayAttendanceRecords = new List<DailyAttendanceRecord>();
+        }
+        finally
+        {
+            isLoadingTodayRecords = false;
+            StateHasChanged();
         }
     }
 
@@ -478,8 +430,9 @@
                     attendanceStatus = result.Status;
                     timeInTime = result.TimeIn;
                     
-                    // Refresh history
+                    // Refresh history and today's records
                     await LoadAttendanceHistory();
+                    await LoadTodayAttendanceRecords();
                     
                     // Auto-hide success message after 3 seconds
                     _ = Task.Delay(3000).ContinueWith(_ => {
@@ -520,3 +473,90 @@
         }
     }
 }
+
+<style>
+    .card {
+        border: none;
+        border-radius: 10px;
+    }
+    
+    .card-header {
+        border-radius: 10px 10px 0 0 !important;
+        border: none;
+    }
+    
+    .btn {
+        border-radius: 8px;
+    }
+    
+    .btn-warning {
+        background-color: #8b7355 !important;
+        border-color: #8b7355 !important;
+    }
+    
+    .btn-warning:hover {
+        background-color: #7a6248 !important;
+        border-color: #7a6248 !important;
+    }
+    
+    .bg-warning {
+        background-color: #8b7355 !important;
+    }
+    
+    .table-warning {
+        background-color: rgba(139, 115, 85, 0.1) !important;
+    }
+    
+    .badge {
+        font-size: 0.875rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .table th {
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.875rem;
+        letter-spacing: 0.5px;
+    }
+    
+    .table td {
+        vertical-align: middle;
+    }
+    
+    .fs-6 {
+        font-size: 1rem !important;
+    }
+    
+    .table-success {
+        background-color: rgba(25, 135, 84, 0.1) !important;
+    }
+    
+    .table-warning {
+        background-color: rgba(255, 193, 7, 0.1) !important;
+    }
+    
+    /* Mobile Responsive */
+    @@media (max-width: 768px) {
+        .container-fluid {
+            padding: 1rem;
+        }
+        
+        .card-body {
+            padding: 1rem;
+        }
+        
+        .btn-lg {
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+        }
+        
+        .d-flex.gap-3 {
+            flex-direction: column;
+            gap: 0.5rem !important;
+        }
+        
+        .d-flex.gap-3 .btn {
+            width: 100%;
+        }
+    }
+</style>

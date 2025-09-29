@@ -8,6 +8,8 @@
 @inject AuthService AuthService
 @inject IJSRuntime JSRuntime
 @inject ScannerMaui.Services.QRScannerService QRScannerService
+@inject ScannerMaui.Services.ConnectionService ConnectionService
+@inject ScannerMaui.Services.OfflineDataService OfflineDataService
 @implements IDisposable
 
 <PageTitle>QR Scanner - Attrak</PageTitle>
@@ -17,7 +19,27 @@
     <!-- Header -->
     <div class="row bg-primary text-white p-2">
         <div class="col-12 text-center">
-            <h5 class="mb-1">Attendance Scanner</h5>
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <div class="connection-status">
+                    <span class="badge @(ConnectionService.IsOnline ? "bg-success" : "bg-danger")">
+                        @ConnectionService.GetConnectionStatusText()
+                    </span>
+                </div>
+                <h5 class="mb-0">Attendance Scanner</h5>
+                <div class="offline-count">
+                    @if (offlineRecordCount > 0)
+                    {
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-warning text-dark">
+                                📱 @offlineRecordCount offline
+                            </span>
+                            <button class="btn btn-sm btn-success" @onclick="ShowPendingModal" title="View Pending Students">
+                                <i class="fas fa-sync"></i>
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
             @if (currentTeacher != null)
             {
                 <div class="small">
@@ -35,44 +57,6 @@
         </div>
     </div>
 
-    <!-- Attendance Type Selection -->
-    <div class="row p-2">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header py-2">
-                    <h6 class="mb-0">
-                        <i class="fas fa-clock me-2"></i>Select Attendance Type
-                    </h6>
-                </div>
-                <div class="card-body py-3">
-                    <div class="row">
-                        <div class="col-md-6 mb-2">
-                            <button class="btn @(attendanceType == "TimeIn" ? "btn-primary" : "btn-outline-primary") w-100" 
-                                    @onclick="@(() => SetAttendanceType("TimeIn"))">
-                                <i class="fas fa-sign-in-alt me-2"></i>Time In
-                            </button>
-                        </div>
-                        <div class="col-md-6 mb-2">
-                            <button class="btn @(attendanceType == "TimeOut" ? "btn-warning" : "btn-outline-warning") w-100" 
-                                    @onclick="@(() => SetAttendanceType("TimeOut"))">
-                                <i class="fas fa-sign-out-alt me-2"></i>Time Out
-                            </button>
-                        </div>
-                    </div>
-                    @if (!string.IsNullOrEmpty(attendanceType))
-                    {
-                        <div class="alert alert-success py-2 mt-2">
-                            <small>
-                                <i class="fas fa-check-circle me-1"></i>
-                                <strong>Selected:</strong> @(attendanceType == "TimeIn" ? "Time In" : "Time Out")
-                                <span class="badge bg-primary ms-2">@DateTime.Now.ToString("HH:mm:ss")</span>
-                            </small>
-                        </div>
-                    }
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Scanner Section -->
         <div class="row p-2 flex-grow-1">
@@ -99,122 +83,58 @@
                     </div>
                     <div class="card-body d-flex flex-column py-2">
                         <!-- QR Scanner Component -->
-                        <div class="scanner-container flex-grow-1 bg-light rounded mb-3 d-flex align-items-center justify-content-center" style="min-height: 250px;">
-                            @if (string.IsNullOrEmpty(attendanceType))
-                            {
-                                <div class="text-center">
-                                    <!-- QR Code Icon -->
-                                    <div class="mb-4">
-                                        <i class="fas fa-hand-pointer fa-4x text-warning"></i>
-                                    </div>
-                                    
-                                    <!-- Title -->
-                                    <h5 class="mb-3 text-dark">Select Attendance Type First</h5>
-                                    
-                                    <!-- Description -->
-                                    <p class="mb-4 text-muted">Please select Time In or Time Out above to start scanning</p>
+                        <div class="scanner-container flex-grow-1 bg-light rounded mb-3 d-flex align-items-center justify-content-center" style="min-height: 300px;">
+                            <div class="text-center w-100">
+                                <!-- QR Code Icon -->
+                                <div class="mb-4">
+                                    <i class="fas fa-qrcode fa-4x text-primary"></i>
                                 </div>
-                            }
-                            else if (isScanning)
-                            {
-                                <div class="text-center">
-                                    <!-- Scanning Animation -->
-                                    <div class="mb-4">
-                                        <div class="scanner-animation">
-                                            <i class="fas fa-qrcode fa-4x text-success"></i>
-                                            <div class="scanning-line"></div>
-                                        </div>
+                                
+                                <!-- Title -->
+                                <h5 class="mb-3 text-dark">Continuous QR Scanner</h5>
+                                
+                                <!-- Description -->
+                                <p class="mb-4 text-muted">Tap Time In or Time Out, then scan student QR codes</p>
+                                
+                                <!-- Time In / Time Out Buttons -->
+                                <div class="row mb-4">
+                                    <div class="col-6">
+                                        <button class="btn btn-primary btn-lg w-100 py-3" @onclick="@(() => SetAttendanceTypeAndStartScanning("TimeIn"))">
+                                            <i class="fas fa-sign-in-alt fa-2x mb-2"></i><br/>
+                                            <strong>Time In</strong>
+                                        </button>
                                     </div>
-                                    
-                                    <!-- Scanning Status -->
-                                    <h5 class="mb-3 text-success">Scanning for @(attendanceType == "TimeIn" ? "Time In" : "Time Out")...</h5>
-                                    
-                                    <!-- Description -->
-                                    <p class="mb-4 text-muted">Point camera at student QR code</p>
-                                    
-                                    <!-- Current Time Info -->
+                                    <div class="col-6">
+                                        <button class="btn btn-warning btn-lg w-100 py-3" @onclick="@(() => SetAttendanceTypeAndStartScanning("TimeOut"))">
+                                            <i class="fas fa-sign-out-alt fa-2x mb-2"></i><br/>
+                                            <strong>Time Out</strong>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Current Mode Display -->
+                                @if (!string.IsNullOrEmpty(attendanceType))
+                                {
                                     <div class="alert alert-info py-2 mb-3">
                                         <small>
                                             <i class="fas fa-info-circle me-1"></i>
-                                            <strong>Current Time:</strong> @DateTime.Now.ToString("HH:mm:ss")<br/>
-                                            <strong>Date:</strong> @DateTime.Now.ToString("MMM dd, yyyy")<br/>
-                                            <strong>Mode:</strong> @(attendanceType == "TimeIn" ? "Time In" : "Time Out")
+                                            <strong>Current Mode:</strong> @(attendanceType == "TimeIn" ? "Time In" : "Time Out")<br/>
+                                            <strong>Status:</strong> @GetScanningStatusMessage()<br/>
+                                            <strong>Time:</strong> @DateTime.Now.ToString("HH:mm:ss")
                                         </small>
                                     </div>
-                                    
-                                    <!-- Stop Scanning Button -->
-                                    <button class="btn btn-danger btn-lg px-3 py-2 w-100" @onclick="StopScanning">
-                                        <i class="fas fa-stop me-2"></i>Stop Scanning
+                                }
+                                
+                                <!-- Action Buttons -->
+                                <div class="d-flex gap-2 justify-content-center">
+                                    <button class="btn btn-secondary btn-lg px-4 py-2" @onclick="GoBack">
+                                        <i class="fas fa-arrow-left me-2"></i>Back
+                                    </button>
+                                    <button class="btn btn-info btn-lg px-4 py-2" @onclick="ShowDatabaseInfo">
+                                        <i class="fas fa-database me-2"></i>Database Info
                                     </button>
                                 </div>
-                            }
-                            else if (isProcessing)
-                            {
-                                <div class="text-center">
-                                    <!-- Processing Animation -->
-                                    <div class="mb-4">
-                                        <div class="spinner-border text-primary" style="width: 4rem; height: 4rem;" role="status">
-                                            <span class="visually-hidden">Processing...</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Processing Status -->
-                                    <h5 class="mb-3 text-primary">Processing...</h5>
-                                    
-                                    <!-- Description -->
-                                    <p class="mb-4 text-muted">Validating student information</p>
-                                </div>
-                            }
-                            else if (lastScanResult != null)
-                            {
-                                <div class="text-center">
-                                    <!-- Success/Error Feedback -->
-                                    <div class="mb-4">
-                                        @if (lastScanResult.IsValid)
-                                        {
-                                            <i class="fas fa-check-circle fa-4x text-success"></i>
-                                        }
-                                        else
-                                        {
-                                            <i class="fas fa-times-circle fa-4x text-danger"></i>
-                                        }
-                                    </div>
-                                    
-                                    <!-- Result Status -->
-                                    <h5 class="mb-3 @(lastScanResult.IsValid ? "text-success" : "text-danger")">
-                                        @(lastScanResult.IsValid ? "Success!" : "Error")
-                                    </h5>
-                                    
-                                    <!-- Student Info -->
-                                    <p class="mb-2 text-dark">@lastScanResult.StudentName</p>
-                                    <p class="mb-4 text-muted">@lastScanResult.Message</p>
-                                    
-                                    <!-- Continue Scanning Button -->
-                                    <button class="btn btn-primary btn-lg px-3 py-2 w-100" @onclick="ContinueScanning">
-                                        <i class="fas fa-qrcode me-2"></i>Continue Scanning
-                                    </button>
-                                </div>
-                            }
-                            else
-                            {
-                                <div class="text-center">
-                                    <!-- QR Code Icon -->
-                                    <div class="mb-4">
-                                        <i class="fas fa-qrcode fa-4x text-primary"></i>
-                                    </div>
-                                    
-                                    <!-- Title -->
-                                    <h5 class="mb-3 text-dark">Ready to Scan</h5>
-                                    
-                                    <!-- Description -->
-                                    <p class="mb-4 text-muted">Start scanning for @(attendanceType == "TimeIn" ? "Time In" : "Time Out")</p>
-                                    
-                                    <!-- Start Scanning Button -->
-                                    <button class="btn btn-success btn-lg px-3 py-2 w-100" @onclick="StartContinuousScanning">
-                                        <i class="fas fa-play me-2"></i>Start Scanning
-                                    </button>
-                                </div>
-                            }
+                            </div>
                         </div>
 
                     </div>
@@ -293,6 +213,94 @@
                                     }
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Database Info Modal -->
+    @if (showDatabaseInfo)
+    {
+        <div class="row p-2">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="fas fa-database me-2"></i>Database Information
+                        </h6>
+                        <button type="button" class="btn-close" @onclick="() => showDatabaseInfo = false"></button>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>📊 Current Status</h6>
+                                <div class="mb-3">
+                                    <strong>Mode:</strong> 
+                                    <span class="badge @(AuthService.IsOfflineMode ? "bg-warning" : "bg-success")">
+                                        @(AuthService.IsOfflineMode ? "Offline" : "Online")
+                                    </span>
+                                </div>
+                                <div class="mb-3">
+                                    <strong>Connection:</strong> 
+                                    <span class="badge @(ConnectionService.IsOnline ? "bg-success" : "bg-danger")">
+                                        @ConnectionService.GetConnectionStatusText()
+                                    </span>
+                                </div>
+                                <div class="mb-3">
+                                    <strong>Offline Records:</strong> 
+                                    <span class="badge bg-info">@offlineRecordCount pending</span>
+                                    @if (offlineRecordCount > 0)
+                                    {
+                                        <button class="btn btn-sm btn-success ms-2" @onclick="TriggerAutoSync" disabled="@isAutoSyncing">
+                                            @if (isAutoSyncing)
+                                            {
+                                                <i class="fas fa-spinner fa-spin me-1">Syncing...</i>
+                                            }
+                                            else
+                                            {
+                                                <i class="fas fa-sync me-1">Sync Now</i>
+                                            }
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>🗂️ Database Location</h6>
+                                <div class="mb-3">
+                                    <strong>Database Path:</strong>
+                                    <div class="bg-light p-2 rounded mt-1">
+                                        <small class="text-muted font-monospace">@GetDatabasePath()</small>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <strong>App Data Directory:</strong>
+                                    <div class="bg-light p-2 rounded mt-1">
+                                        <small class="text-muted font-monospace">@GetAppDataDirectory()</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 mt-3 flex-wrap">
+                            <button class="btn btn-primary btn-sm" @onclick="CopyDatabasePath">
+                                <i class="fas fa-copy me-1"></i>Copy Path
+                            </button>
+                            <button class="btn btn-success btn-sm" @onclick="ViewOfflineData">
+                                <i class="fas fa-eye me-1"></i>View Data
+                            </button>
+                            <button class="btn btn-warning btn-sm" @onclick="ExportOfflineData">
+                                <i class="fas fa-download me-1"></i>Export Data
+                            </button>
+                            <button class="btn btn-info btn-sm" @onclick="CreateTestDatabase">
+                                <i class="fas fa-plus me-1"></i>Create Test File
+                            </button>
+                            <button class="btn btn-warning btn-sm" @onclick="ShowPermissionInstructions">
+                                <i class="fas fa-key me-1"></i>Enable Storage
+                            </button>
+                            <button class="btn btn-secondary btn-sm" @onclick="CopyDatabaseToAccessibleLocation">
+                                <i class="fas fa-copy me-1"></i>Copy DB
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -446,6 +454,7 @@
             console.log('Could not play beep sound:', error);
         }
     };
+
 </script>
 
 @code {
@@ -465,13 +474,25 @@
     
     // Timer for updating current time display
     private Timer? timeUpdateTimer;
+    
+    // Offline mode variables
+    private int offlineRecordCount = 0;
+    private bool showDatabaseInfo = false;
+    private bool isAutoSyncing = false;
+    private bool showPendingModal = false;
+    private List<PendingStudent> pendingStudents = new();
 
     protected override async Task OnInitializedAsync()
     {
         await LoadCurrentTeacher();
+        await LoadOfflineRecordCount();
         
         // Subscribe to QR code scanned events
         QRScannerService.QRCodeScanned += OnQRCodeScanned;
+        QRScannerService.OfflineDataSaved += OnOfflineDataSaved;
+        
+        // Subscribe to connection status changes
+        ConnectionService.ConnectionStatusChanged += OnConnectionStatusChanged;
         
         // Start timer to update current time display every second
         timeUpdateTimer = new Timer(async _ => await InvokeAsync(StateHasChanged), null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
@@ -481,6 +502,8 @@
     {
         // Unsubscribe from events
         QRScannerService.QRCodeScanned -= OnQRCodeScanned;
+        QRScannerService.OfflineDataSaved -= OnOfflineDataSaved;
+        ConnectionService.ConnectionStatusChanged -= OnConnectionStatusChanged;
         
         // Dispose timer
         timeUpdateTimer?.Dispose();
@@ -550,7 +573,7 @@
     {
         try
         {
-            if (currentTeacher == null) 
+            if (currentTeacher == null)
             {
                 System.Diagnostics.Debug.WriteLine("LoadTodayAttendance: currentTeacher is null");
                 return;
@@ -605,9 +628,9 @@
                 }).ToList();
                 
                 System.Diagnostics.Debug.WriteLine($"LoadTodayAttendance: Loaded {response.Count} daily records, converted to {attendanceList.Count} attendance records for teacher {currentTeacher.TeacherId}");
-            }
-            else
-            {
+        }
+        else
+        {
                 System.Diagnostics.Debug.WriteLine("LoadTodayAttendance: Response is null");
                 attendanceList = new List<AttendanceRecord>();
             }
@@ -633,6 +656,97 @@
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error playing success sound: {ex.Message}");
+        }
+    }
+
+    private bool IsScanningAllowed()
+    {
+        var currentTime = DateTime.Now.TimeOfDay;
+        var currentDay = DateTime.Now.DayOfWeek;
+        
+        // No scanning on weekends
+        if (currentDay == DayOfWeek.Saturday || currentDay == DayOfWeek.Sunday)
+        {
+            return false;
+        }
+        
+        // Define school hours
+        var schoolStart = new TimeSpan(6, 0, 0);   // 6:00 AM
+        var schoolEnd = new TimeSpan(18, 0, 0);    // 6:00 PM
+        
+        // Allow scanning only during school hours
+        if (currentTime >= schoolStart && currentTime <= schoolEnd)
+        {
+            // Additional validation for Time In and Time Out
+            if (!string.IsNullOrEmpty(attendanceType))
+            {
+                if (attendanceType == "TimeIn")
+                {
+                    // Time In should be in the morning (6 AM - 12 PM)
+                    var morningEnd = new TimeSpan(12, 0, 0);
+                    return currentTime <= morningEnd;
+                }
+                else if (attendanceType == "TimeOut")
+                {
+                    // Time Out should be in the afternoon (12 PM - 6 PM)
+                    var afternoonStart = new TimeSpan(12, 0, 0);
+                    return currentTime >= afternoonStart;
+                }
+            }
+            return true;
+        }
+        
+        return false; // Outside school hours
+    }
+
+    private string GetScanningStatusMessage()
+    {
+        var currentTime = DateTime.Now.TimeOfDay;
+        var currentDay = DateTime.Now.DayOfWeek;
+        
+        // Check if it's weekend
+        if (currentDay == DayOfWeek.Saturday || currentDay == DayOfWeek.Sunday)
+        {
+            return "Scanning not allowed: Weekends";
+        }
+        
+        // Check if outside school hours
+        var schoolStart = new TimeSpan(6, 0, 0);   // 6:00 AM
+        var schoolEnd = new TimeSpan(18, 0, 0);    // 6:00 PM
+        
+        if (currentTime < schoolStart)
+        {
+            return $"Scanning not allowed: Too early (before 6:00 AM)";
+        }
+        else if (currentTime > schoolEnd)
+        {
+            return $"Scanning not allowed: Too late (after 6:00 PM)";
+        }
+        else
+        {
+            // Check Time In/Time Out specific restrictions
+            if (!string.IsNullOrEmpty(attendanceType))
+            {
+                if (attendanceType == "TimeIn")
+                {
+                    var morningEnd = new TimeSpan(12, 0, 0);
+                    if (currentTime > morningEnd)
+                    {
+                        return "Time In not allowed: After 12:00 PM (use Time Out instead)";
+                    }
+                    return "Time In allowed: Morning hours (6:00 AM - 12:00 PM)";
+                }
+                else if (attendanceType == "TimeOut")
+                {
+                    var afternoonStart = new TimeSpan(12, 0, 0);
+                    if (currentTime < afternoonStart)
+                    {
+                        return "Time Out not allowed: Before 12:00 PM (use Time In instead)";
+                    }
+                    return "Time Out allowed: Afternoon hours (12:00 PM - 6:00 PM)";
+                }
+            }
+            return "Scanning allowed: School hours (6:00 AM - 6:00 PM)";
         }
     }
 
@@ -666,9 +780,9 @@
                 if (timeInHour <= 7 && timeOutHour >= 16) // 7:30 AM to 4:30 PM
                 {
                     dayType = "Whole Day";
-                }
-                else
-                {
+            }
+            else
+            {
                     // All other combinations are Half Day
                     dayType = "Half Day";
                 }
@@ -779,7 +893,7 @@
         // TODO: Implement attendance export functionality
         message = "Export functionality coming soon!";
         isSuccess = true;
-        StateHasChanged();
+                StateHasChanged();
     }
 
     private List<AttendanceRecord> GetUniqueAttendanceRecords()
@@ -797,6 +911,28 @@
     {
         if (!string.IsNullOrEmpty(qrCode) && !string.IsNullOrEmpty(attendanceType))
         {
+            // Check if scanning is allowed at current time
+            if (!IsScanningAllowed())
+            {
+                var statusMessage = GetScanningStatusMessage();
+                lastScanResult = new AttendanceRecord
+                {
+                    StudentId = qrCode,
+                    StudentName = "Scanning Restricted",
+                    Timestamp = DateTime.Now,
+                    IsValid = false,
+                    Status = "Restricted",
+                    AttendanceType = "Unknown",
+                    Message = statusMessage
+                };
+                message = statusMessage;
+                isSuccess = false;
+                isProcessing = false;
+                isScanning = false;
+                StateHasChanged();
+                return;
+            }
+            
             await ProcessStudentQRCode(qrCode);
         }
     }
@@ -805,6 +941,53 @@
     {
         attendanceType = type;
         StateHasChanged();
+    }
+
+    private async Task SetAttendanceTypeAndStartScanning(string type)
+    {
+        attendanceType = type;
+        StateHasChanged();
+        
+        // Navigate to native QR scanner page
+        await Task.Delay(300); // Small delay for UI feedback
+        await OpenNativeScanner(type);
+    }
+
+    private async Task OpenNativeScanner(string attendanceType)
+    {
+        try
+        {
+            // Check if scanning is allowed at current time
+            if (!IsScanningAllowed())
+            {
+                var statusMessage = GetScanningStatusMessage();
+                message = statusMessage;
+                isSuccess = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Use the QRScannerService to open the native scanner with attendance type
+            await QRScannerService.OpenNativeQRScanner(attendanceType);
+            
+            System.Diagnostics.Debug.WriteLine($"Opened native scanner for {attendanceType}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error opening native scanner: {ex.Message}");
+            message = $"Error opening scanner: {ex.Message}";
+            isSuccess = false;
+            StateHasChanged();
+        }
+    }
+
+    private void GoBack()
+    {
+        // Stop any ongoing scanning
+        StopScanning();
+        
+        // Navigate back
+        Navigation.NavigateTo("/");
     }
 
     private async Task ProcessStudentQRCode(string studentId)
@@ -833,8 +1016,8 @@
             if (attendanceType == "TimeIn")
             {
                 var request = new DailyTimeInRequest
-                {
-                    StudentId = studentId,
+            {
+                StudentId = studentId,
                     Date = currentTime.Date,
                     TimeIn = currentTime.TimeOfDay
                 };
@@ -867,26 +1050,29 @@
                     var result = await response.Content.ReadFromJsonAsync<DailyTimeInResponse>();
                     System.Diagnostics.Debug.WriteLine($"Parsed Time In Result - Success: {result?.Success}, Message: {result?.Message}");
                     
-                    if (result?.Success == true)
+                if (result?.Success == true)
+                {
+                    // Reload attendance list to get the latest data from server
+                    await LoadTodayAttendance();
+                    
+                    // Get student name for display
+                    var studentName = await GetStudentNameAsync(studentId);
+                    
+                    // Create a temporary record for display feedback
+                    var feedbackRecord = new AttendanceRecord
                     {
-                        // Reload attendance list to get the latest data from server
-                        await LoadTodayAttendance();
-                        
-                        // Create a temporary record for display feedback
-                        var feedbackRecord = new AttendanceRecord
-                        {
-                            StudentId = studentId,
-                            StudentName = "Student", // We'll get the name from the attendance list
-                            Timestamp = DateTime.Now,
-                            IsValid = true,
-                            Status = result.Status,
-                            AttendanceType = "TimeIn",
-                            Message = result.Message
-                        };
-                        
-                        lastScanResult = feedbackRecord;
-                        
-                        // Play success sound and show green feedback
+                        StudentId = studentId,
+                        StudentName = studentName,
+                        Timestamp = DateTime.Now,
+                        IsValid = true,
+                        Status = result.Status,
+                        AttendanceType = "TimeIn",
+                        Message = result.Message
+                    };
+                    
+                    lastScanResult = feedbackRecord;
+                    
+                    // Play success sound and show green feedback
                         await PlaySuccessSound();
                         message = $"Time In marked: {result.TimeIn} ({result.Status})";
                         isSuccess = true;
@@ -917,40 +1103,32 @@
                         // Reload attendance list to get the latest data from server
                         await LoadTodayAttendance();
                         
-                        // Create a temporary record for display feedback
-                        var feedbackRecord = new AttendanceRecord
-                        {
-                            StudentId = studentId,
-                            StudentName = "Student", // We'll get the name from the attendance list
-                            Timestamp = DateTime.Now,
-                            IsValid = true,
-                            Status = "Present",
-                            AttendanceType = "TimeOut",
-                            Message = result.Message,
-                            Remarks = result.Remarks
-                        };
-                        
-                        lastScanResult = feedbackRecord;
-                        
                         // Play success sound and show green feedback
                         await PlaySuccessSound();
-                        message = $"Time Out marked: {result.TimeOut} ({result.Remarks})";
+                        message = $"✓ Time Out: {result.TimeOut} ({result.Remarks})";
                         isSuccess = true;
-                    }
-                    else
+                        
+                        // Show success feedback briefly then continue scanning
+                        StateHasChanged();
+                        await Task.Delay(2000); // Show success for 2 seconds
+                        
+                        // Continue scanning automatically
+                        await StartContinuousScanning();
+                }
+                else
+                {
+                    lastScanResult = new AttendanceRecord
                     {
-                        lastScanResult = new AttendanceRecord
-                        {
-                            StudentId = studentId,
-                            StudentName = "Unknown",
-                            Timestamp = DateTime.Now,
-                            IsValid = false,
-                            Status = "Error",
+                        StudentId = studentId,
+                        StudentName = "Unknown",
+                        Timestamp = DateTime.Now,
+                        IsValid = false,
+                        Status = "Error",
                             AttendanceType = "TimeOut",
                             Message = result?.Message ?? "Failed to mark Time Out"
-                        };
+                    };
                         message = result?.Message ?? "Failed to mark Time Out";
-                        isSuccess = false;
+                    isSuccess = false;
                     }
                 }
             }
@@ -1008,7 +1186,7 @@
             await LoadTodayAttendance();
 
             // Check database directly for existing attendance records
-            var today = DateTime.Today;
+        var today = DateTime.Today;
             var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
             
             // Check if student has Time In for today
@@ -1104,24 +1282,17 @@
                         // Reload attendance list to get the latest data from server
                         await LoadTodayAttendance();
                         
-                        // Create a temporary record for display feedback
-                        var feedbackRecord = new AttendanceRecord
-                        {
-                            StudentId = studentId,
-                            StudentName = "Student", // We'll get the name from the attendance list
-                            Timestamp = DateTime.Now,
-                            IsValid = true,
-                            Status = result.Status,
-                            AttendanceType = "TimeIn",
-                            Message = result.Message
-                        };
-                        
-                        lastScanResult = feedbackRecord;
-                        
                         // Play success sound and show green feedback
                         await PlaySuccessSound();
-                        message = $"Time In marked: {result.TimeIn} ({result.Status})";
+                        message = $"✓ Time In: {result.TimeIn} ({result.Status})";
                         isSuccess = true;
+                        
+                        // Show success feedback briefly then continue scanning
+                        StateHasChanged();
+                        await Task.Delay(2000); // Show success for 2 seconds
+                        
+                        // Continue scanning automatically
+                        await StartContinuousScanning();
                     }
                     else
                     {
@@ -1149,11 +1320,14 @@
                         // Reload attendance list to get the latest data from server
                         await LoadTodayAttendance();
                         
+                        // Get student name for display
+                        var studentName = await GetStudentNameAsync(studentId);
+                        
                         // Create a temporary record for display feedback
                         var feedbackRecord = new AttendanceRecord
                         {
                             StudentId = studentId,
-                            StudentName = "Student", // We'll get the name from the attendance list
+                            StudentName = studentName,
                             Timestamp = DateTime.Now,
                             IsValid = true,
                             Status = "Present",
@@ -1167,43 +1341,43 @@
                         // Play success sound and show green feedback
                         await PlaySuccessSound();
                         message = $"Time Out marked: {result.TimeOut} ({result.Remarks})";
-                        isSuccess = true;
-                    }
-                    else
-                    {
-                        lastScanResult = new AttendanceRecord
-                        {
-                            StudentId = studentId,
-                            StudentName = "Unknown",
-                            Timestamp = DateTime.Now,
-                            IsValid = false,
-                            Status = "Error",
-                            AttendanceType = "TimeOut",
-                            Message = result?.Message ?? "Failed to mark Time Out"
-                        };
-                        message = result?.Message ?? "Failed to mark Time Out";
-                        isSuccess = false;
-                    }
-                }
+                isSuccess = true;
             }
             else
             {
+                        lastScanResult = new AttendanceRecord
+                {
+                    StudentId = studentId,
+                            StudentName = "Unknown",
+                            Timestamp = DateTime.Now,
+                    IsValid = false,
+                            Status = "Error",
+                            AttendanceType = "TimeOut",
+                            Message = result?.Message ?? "Failed to mark Time Out"
+                };
+                        message = result?.Message ?? "Failed to mark Time Out";
+                isSuccess = false;
+            }
+        }
+            }
+            else
+        {
                 var errorContent = await response.Content.ReadAsStringAsync();
                 System.Diagnostics.Debug.WriteLine($"API Error Response: {errorContent}");
                 
                 lastScanResult = new AttendanceRecord
-                {
-                    StudentId = studentId,
+            {
+                StudentId = studentId,
                     StudentName = "Unknown",
                     Timestamp = DateTime.Now,
-                    IsValid = false,
+                IsValid = false,
                     Status = "Error",
                     AttendanceType = "Unknown",
                     Message = $"API Error: {response.StatusCode} - {errorContent}"
-                };
+            };
                 message = $"API Error: {response.StatusCode}";
-                isSuccess = false;
-            }
+            isSuccess = false;
+        }
         }
         catch (Exception ex)
         {
@@ -1232,6 +1406,16 @@
     {
         try
         {
+            // Check if scanning is allowed at current time
+            if (!IsScanningAllowed())
+            {
+                var statusMessage = GetScanningStatusMessage();
+                message = statusMessage;
+                isSuccess = false;
+                StateHasChanged();
+                return;
+            }
+            
             isScanning = true;
             lastScanResult = null;
             StateHasChanged();
@@ -1283,7 +1467,395 @@
         await StartContinuousScanning();
     }
 
+    // Offline mode methods
+    private async Task LoadOfflineRecordCount()
+    {
+        try
+        {
+            offlineRecordCount = await QRScannerService.GetOfflineRecordCountAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading offline record count: {ex.Message}");
+        }
+    }
 
+    private async Task<string> GetStudentNameAsync(string studentId)
+    {
+        try
+        {
+            return await OfflineDataService.GetStudentNameForDisplayAsync(studentId);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error getting student name: {ex.Message}");
+            return $"Student {studentId}";
+        }
+    }
 
+    private async Task ShowPendingModal()
+    {
+        try
+        {
+            pendingStudents = await OfflineDataService.GetPendingStudentsAsync();
+            showPendingModal = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading pending students: {ex.Message}");
+        }
+    }
 
+    private async Task SyncIndividualStudent(string studentId)
+    {
+        try
+        {
+            var apiBaseUrl = "https://attrak.onrender.com/";
+            var teacherId = currentTeacher?.TeacherId ?? "unknown";
+            
+            var success = await OfflineDataService.SyncIndividualStudentAsync(studentId, apiBaseUrl, teacherId);
+            
+            if (success)
+            {
+                // Remove from pending list
+                pendingStudents.RemoveAll(p => p.StudentId == studentId);
+                await LoadOfflineRecordCount(); // Refresh count
+                System.Diagnostics.Debug.WriteLine($"Successfully synced student {studentId}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to sync student {studentId}");
+            }
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error syncing individual student: {ex.Message}");
+        }
+    }
+
+    private async Task TriggerAutoSync()
+    {
+        try
+        {
+            isAutoSyncing = true;
+            StateHasChanged();
+            
+            // Get API base URL from configuration
+            var apiBaseUrl = "https://attrak.onrender.com/"; // Your actual API URL
+            
+            // Get current teacher ID
+            var teacherId = currentTeacher?.TeacherId ?? "unknown";
+            
+            var syncSuccess = await OfflineDataService.AutoSyncOfflineDataAsync(apiBaseUrl, teacherId);
+            
+            if (syncSuccess)
+            {
+                await LoadOfflineRecordCount(); // Refresh count
+                System.Diagnostics.Debug.WriteLine("Manual sync completed successfully");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("Manual sync completed with some failures");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error in manual sync: {ex.Message}");
+        }
+        finally
+        {
+            isAutoSyncing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async void OnOfflineDataSaved(object? sender, string qrCode)
+    {
+        await LoadOfflineRecordCount();
+        System.Diagnostics.Debug.WriteLine($"Offline data saved for QR code: {qrCode}");
+        
+        // Show scan result with student name
+        var studentName = await GetStudentNameAsync(qrCode);
+        lastScanResult = new AttendanceRecord
+        {
+            StudentId = qrCode,
+            StudentName = studentName,
+            Timestamp = DateTime.Now,
+            IsValid = true,
+            Status = "Saved Offline",
+            AttendanceType = "Offline",
+            Message = "Data saved offline - will sync when connection is available"
+        };
+        
+        message = $"✅ {studentName} - Data saved offline";
+        isSuccess = true;
+        StateHasChanged();
+        
+        // Try auto-sync if connection is available
+        if (ConnectionService.IsOnline)
+        {
+            System.Diagnostics.Debug.WriteLine("Connection available, attempting auto-sync...");
+            await TriggerAutoSync();
+        }
+    }
+
+    private async void OnConnectionStatusChanged(object? sender, bool isOnline)
+    {
+        await InvokeAsync(StateHasChanged);
+        System.Diagnostics.Debug.WriteLine($"Connection status changed: {(isOnline ? "Online" : "Offline")}");
+        
+        // Auto-sync when connection is restored
+        if (isOnline && offlineRecordCount > 0)
+        {
+            System.Diagnostics.Debug.WriteLine("Connection restored with pending offline records, attempting auto-sync...");
+            await TriggerAutoSync();
+        }
+    }
+
+    // Database Info Methods
+    private void ShowDatabaseInfo()
+    {
+        showDatabaseInfo = !showDatabaseInfo;
+        StateHasChanged();
+    }
+
+    private string GetDatabasePath()
+    {
+        try
+        {
+            // Get the database path from OfflineDataService
+            var offlineDataService = new OfflineDataService();
+            return offlineDataService.GetDatabasePath();
+        }
+        catch (Exception ex)
+        {
+            return $"Error getting path: {ex.Message}";
+        }
+    }
+
+    private string GetAppDataDirectory()
+    {
+        try
+        {
+            // Get the app data directory
+            var offlineDataService = new OfflineDataService();
+            return offlineDataService.GetAppDataDirectory();
+        }
+        catch (Exception ex)
+        {
+            return $"Error getting directory: {ex.Message}";
+        }
+    }
+
+    private async Task CopyDatabasePath()
+    {
+        try
+        {
+            var databasePath = GetDatabasePath();
+            await Clipboard.SetTextAsync(databasePath);
+            message = "✅ Database path copied to clipboard!";
+            isSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            message = $"❌ Error copying path: {ex.Message}";
+            isSuccess = false;
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task ViewOfflineData()
+    {
+        try
+        {
+            await LoadOfflineRecordCount();
+            message = $"📊 Found {offlineRecordCount} offline records";
+            isSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            message = $"❌ Error viewing data: {ex.Message}";
+            isSuccess = false;
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task ExportOfflineData()
+    {
+        try
+        {
+            var success = await QRScannerService.SaveExportToFileAsync();
+            
+            if (success)
+            {
+                message = "✅ Offline data exported successfully!";
+                isSuccess = true;
+            }
+            else
+            {
+                message = "❌ Failed to export offline data";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"❌ Error exporting data: {ex.Message}";
+            isSuccess = false;
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task CreateTestDatabase()
+    {
+        try
+        {
+            var offlineDataService = new OfflineDataService();
+            var success = await offlineDataService.CreateTestDatabaseFileAsync();
+            
+            if (success)
+            {
+                message = "✅ Test files created! Check Downloads folder for 'ATTRAK_TEST.txt' and app storage for 'SIMPLE_TEST.txt'. If no files in Downloads, enable Storage permission in Android Settings > Apps > ScannerMaui > Permissions.";
+                isSuccess = true;
+            }
+            else
+            {
+                message = "❌ Failed to create test database file";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"❌ Error creating test file: {ex.Message}";
+            isSuccess = false;
+        }
+        
+        StateHasChanged();
+    }
+
+    private void ShowPermissionInstructions()
+    {
+        message = "📱 STORAGE PERMISSION STEPS:\n\n" +
+                 "1. Go to Android Settings\n" +
+                 "2. Apps & notifications (or Apps)\n" +
+                 "3. Find 'ScannerMaui'\n" +
+                 "4. Tap 'Permissions'\n" +
+                 "5. Enable 'Storage' permission\n" +
+                 "6. Try 'Create Test File' again\n\n" +
+                 "If still not working, try:\n" +
+                 "- Restart the app after enabling permission\n" +
+                 "- Check if 'Files and media' permission is enabled\n" +
+                 "- Some Android versions need 'All files access' permission";
+        isSuccess = false;
+        StateHasChanged();
+    }
+
+    private async Task CopyDatabaseToAccessibleLocation()
+    {
+        try
+        {
+            var offlineDataService = new OfflineDataService();
+            var result = await offlineDataService.CopyDatabaseToAccessibleLocationAsync();
+            
+            message = result;
+            isSuccess = result.Contains("copied to");
+        }
+        catch (Exception ex)
+        {
+            message = $"❌ Error copying database: {ex.Message}";
+            isSuccess = false;
+        }
+        
+        StateHasChanged();
+    }
+}
+
+<!-- Pending Students Modal -->
+@if (showPendingModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-users me-2"></i>Pending Students (@pendingStudents.Count)
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="() => showPendingModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    @if (pendingStudents.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Student Name</th>
+                                        <th>Student ID</th>
+                                        <th>Type</th>
+                                        <th>Time</th>
+                                        <th>Records</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var student in pendingStudents)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <strong>@student.StudentName</strong>
+                                            </td>
+                                            <td>
+                                                <code>@student.StudentId</code>
+                                            </td>
+                                            <td>
+                                                <span class="badge @(student.AttendanceType == "TimeIn" ? "bg-success" : "bg-warning")">
+                                                    @student.AttendanceType
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <small>@student.ScanTime.ToString("MM/dd HH:mm")</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-info">@student.RecordCount</span>
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary" @onclick="() => SyncIndividualStudent(student.StudentId)">
+                                                    <i class="fas fa-sync me-1"></i>Sync
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-4">
+                            <i class="fas fa-check-circle text-success fa-3x mb-3"></i>
+                            <h5>No Pending Students</h5>
+                            <p class="text-muted">All students have been synced successfully!</p>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showPendingModal = false">
+                        Close
+                    </button>
+                    @if (pendingStudents.Any())
+                    {
+                        <button type="button" class="btn btn-success" @onclick="TriggerAutoSync">
+                            <i class="fas fa-sync me-1"></i>Sync All
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
 }

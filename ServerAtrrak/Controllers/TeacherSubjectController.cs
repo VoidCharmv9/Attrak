@@ -298,6 +298,21 @@ namespace ServerAtrrak.Controllers
             }
         }
 
+        [HttpPost("fix-database")]
+        public async Task<ActionResult<string>> FixDatabase()
+        {
+            try
+            {
+                var result = await _teacherSubjectService.FixDatabaseAsync();
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fixing database: {ErrorMessage}", ex.Message);
+                return StatusCode(500, $"Error fixing database: {ex.Message}");
+            }
+        }
+
     }
 
     public class UpdateScheduleRequest

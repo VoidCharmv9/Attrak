@@ -141,26 +141,26 @@ namespace ServerAtrrak.Services
                             StudentName = studentName,
                             Timestamp = attendanceDate.Date.Add(timeIn.Value),
                             Status = status,
-                            IsValid = true,
-                            AttendanceType = "TimeIn",
+                        IsValid = true,
+                        AttendanceType = "TimeIn",
                             Message = "Time In recorded",
                             Remarks = remarks
                         });
                     }
 
                     if (timeOut.HasValue)
+                {
+                    attendance.Add(new AttendanceRecord
                     {
-                        attendance.Add(new AttendanceRecord
-                        {
                             StudentId = studentId,
                             StudentName = studentName,
                             Timestamp = attendanceDate.Date.Add(timeOut.Value),
                             Status = status,
-                            IsValid = true,
+                        IsValid = true,
                             AttendanceType = "TimeOut",
                             Message = "Time Out recorded",
                             Remarks = remarks
-                        });
+                    });
                     }
                 }
 

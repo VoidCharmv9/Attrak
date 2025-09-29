@@ -31,6 +31,8 @@ namespace ScannerMaui
             // Also add a default HttpClient
             
             // Register services
+            builder.Services.AddSingleton<ScannerMaui.Services.OfflineDataService>();
+            builder.Services.AddSingleton<ScannerMaui.Services.ConnectionService>();
             builder.Services.AddSingleton<ScannerMaui.Services.AuthService>();
             builder.Services.AddSingleton<ScannerMaui.Services.QRScannerService>();
 

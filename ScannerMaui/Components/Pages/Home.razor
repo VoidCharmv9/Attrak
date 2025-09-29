@@ -119,24 +119,9 @@
             <p class="text-muted">Teacher Portal </p>
         </div>
 
-        <!-- Tab Navigation -->
-        <ul class="nav nav-tabs nav-fill mb-4" id="authTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link @(isLoginTab ? "active" : "")" id="login-tab" type="button" @onclick="() => SwitchTab(true)">
-                    <i class="fas fa-sign-in-alt me-2"></i>Login
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link @(!isLoginTab ? "active" : "")" id="register-tab" type="button" @onclick="() => SwitchTab(false)">
-                    <i class="fas fa-user-plus me-2"></i>Register
-                </button>
-            </li>
-        </ul>
 
         <!-- Login Form -->
-        @if (isLoginTab)
-        {
-            <EditForm Model="loginRequest" OnValidSubmit="HandleLogin">
+        <EditForm Model="loginRequest" OnValidSubmit="HandleLogin">
                 <DataAnnotationsValidator />
 
                 <div class="mb-3">
@@ -177,186 +162,17 @@
                     </button>
                 </div>
             </EditForm>
-        }
-
-        <!-- Registration Form -->
-        @if (!isLoginTab)
-        {
-            <EditForm Model="registerRequest" OnValidSubmit="HandleRegister">
-                <DataAnnotationsValidator />
-
-                <div class="row">
-                    <div class="col-12 col-md-6 mb-3">
-                        <label for="reg-username" class="form-label">
-                            <i class="fas fa-user me-2"></i>Username
-                        </label>
-                        <InputText id="reg-username" class="form-control" @bind-Value="registerRequest.Username" placeholder="Enter username" />
-                        <ValidationMessage For="@(() => registerRequest.Username)" class="text-danger" />
-                    </div>
-                    <div class="col-12 col-md-6 mb-3">
-                        <label for="reg-email" class="form-label">
-                            <i class="fas fa-envelope me-2"></i>Email
-                        </label>
-                        <InputText id="reg-email" type="email" class="form-control" @bind-Value="registerRequest.Email" placeholder="Enter email" />
-                        <ValidationMessage For="@(() => registerRequest.Email)" class="text-danger" />
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-12 col-md-6 mb-3">
-                        <label for="reg-password" class="form-label">
-                            <i class="fas fa-lock me-2"></i>Password
-                        </label>
-                        <InputText id="reg-password" type="password" class="form-control" @bind-Value="registerRequest.Password" placeholder="Enter password" />
-                        <ValidationMessage For="@(() => registerRequest.Password)" class="text-danger" />
-                    </div>
-                    <div class="col-12 col-md-6 mb-3">
-                        <label for="reg-fullname" class="form-label">
-                            <i class="fas fa-id-card me-2"></i>Full Name
-                        </label>
-                        <InputText id="reg-fullname" class="form-control text-uppercase" @bind-Value="registerRequest.FullName" placeholder="Enter full name" />
-                        <ValidationMessage For="@(() => registerRequest.FullName)" class="text-danger" />
-                    </div>
-                </div>
-
-                <div class="mb-3">
-                    <label for="reg-region" class="form-label">
-                        <i class="fas fa-map-marker-alt me-2"></i>Region
-                    </label>
-                    <InputSelect id="reg-region" class="form-select" @bind-Value="registerRequest.Region" @bind-Value:after="OnRegionChanged">
-                        <option value="">Select Region</option>
-                        @foreach (var region in regions)
-                        {
-                            <option value="@region">@region</option>
-                        }
-                        <option value="manual">+ Add New Region</option>
-                    </InputSelect>
-                    @if (registerRequest.Region == "manual")
-                    {
-                        <InputText class="form-control mt-2" @bind-Value="manualRegion" placeholder="Enter region name manually" />
-                    }
-                    <ValidationMessage For="@(() => registerRequest.Region)" class="text-danger" />
-                </div>
-
-                <div class="mb-3">
-                    <label for="reg-division" class="form-label">
-                        <i class="fas fa-building me-2"></i>Division
-                    </label>
-                    <InputSelect id="reg-division" class="form-select" @bind-Value="registerRequest.Division" @bind-Value:after="OnDivisionChanged" disabled="@(string.IsNullOrEmpty(registerRequest.Region))">
-                        <option value="">Select Division</option>
-                        @foreach (var division in divisions)
-                        {
-                            <option value="@division">@division</option>
-                        }
-                        <option value="manual">+ Add New Division</option>
-                    </InputSelect>
-                    @if (registerRequest.Division == "manual")
-                    {
-                        <InputText class="form-control mt-2" @bind-Value="manualDivision" placeholder="Enter division name manually" />
-                    }
-                    <ValidationMessage For="@(() => registerRequest.Division)" class="text-danger" />
-                </div>
-
-                <div class="mb-3">
-                    <label for="reg-district" class="form-label">
-                        <i class="fas fa-map me-2"></i>District (Optional)
-                    </label>
-                    <InputSelect id="reg-district" class="form-select" @bind-Value="registerRequest.District" @bind-Value:after="OnDistrictChanged" disabled="@(string.IsNullOrEmpty(registerRequest.Division))">
-                        <option value="">Select District (Optional)</option>
-                        @foreach (var district in districts)
-                        {
-                            <option value="@district">@district</option>
-                        }
-                        <option value="manual">+ Add New District</option>
-                    </InputSelect>
-                    @if (registerRequest.District == "manual")
-                    {
-                        <InputText class="form-control mt-2" @bind-Value="manualDistrict" placeholder="Enter district name manually" />
-                    }
-                </div>
-
-                <div class="mb-3">
-                    <label for="reg-schoolname" class="form-label">
-                        <i class="fas fa-school me-2"></i>School Name
-                    </label>
-                    <InputText id="reg-schoolname" class="form-control" @bind-Value="registerRequest.SchoolName" placeholder="Enter school name" />
-                    <ValidationMessage For="@(() => registerRequest.SchoolName)" class="text-danger" />
-                </div>
-
-                <div class="mb-4">
-                    <label for="reg-schooladdress" class="form-label">
-                        <i class="fas fa-map-pin me-2"></i>School Address (Optional)
-                    </label>
-                    <InputTextArea id="reg-schooladdress" class="form-control" @bind-Value="registerRequest.SchoolAddress" placeholder="Enter school address" rows="2" />
-                </div>
-
-                @if (!string.IsNullOrEmpty(errorMessage))
-                {
-                    <div class="alert alert-danger" role="alert">
-                        @errorMessage
-                    </div>
-                }
-
-                @if (!string.IsNullOrEmpty(successMessage))
-                {
-                    <div class="alert alert-success" role="alert">
-                        @successMessage
-                    </div>
-                }
-
-                <div class="d-grid">
-                    <button type="submit" class="btn btn-success" disabled="@isLoading">
-                        @if (isLoading)
-                        {
-                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                            <span>Registering...</span>
-                        }
-                        else
-                        {
-                            <i class="fas fa-user-plus me-2"></i>
-                            <span>Register as Teacher</span>
-                        }
-                    </button>
-                </div>
-            </EditForm>
-        }
     </div>
 </div>
 
 @code {
     private LoginRequest loginRequest = new();
-    private RegisterRequest registerRequest = new();
     private string errorMessage = string.Empty;
-    private string successMessage = string.Empty;
     private bool isLoading = false;
-    private bool isLoginTab = true;
-
-    private List<string> regions = new();
-    private List<string> divisions = new();
-    private List<string> districts = new();
-
-    // Manual input variables
-    private string manualRegion = "";
-    private string manualDivision = "";
-    private string manualDistrict = "";
 
     protected override async Task OnInitializedAsync()
     {
-        try
-        {
-            await LoadRegions();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error initializing: {ex.Message}");
-        }
-    }
-
-    private void SwitchTab(bool showLogin)
-    {
-        isLoginTab = showLogin;
-        errorMessage = string.Empty;
-        successMessage = string.Empty;
+        // No initialization needed for login-only page
     }
 
     private async Task HandleLogin()
@@ -365,7 +181,6 @@
 
         isLoading = true;
         errorMessage = string.Empty;
-        successMessage = string.Empty;
         StateHasChanged();
 
         try
@@ -421,142 +236,4 @@
         }
     }
 
-    private async Task HandleRegister()
-    {
-        if (isLoading) return;
-
-        isLoading = true;
-        errorMessage = string.Empty;
-        successMessage = string.Empty;
-        StateHasChanged();
-
-        try
-        {
-            if (registerRequest.Region == "manual" && !string.IsNullOrEmpty(manualRegion))
-            {
-                registerRequest.Region = manualRegion;
-            }
-            if (registerRequest.Division == "manual" && !string.IsNullOrEmpty(manualDivision))
-            {
-                registerRequest.Division = manualDivision;
-            }
-            if (registerRequest.District == "manual" && !string.IsNullOrEmpty(manualDistrict))
-            {
-                registerRequest.District = manualDistrict;
-            }
-
-            var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
-            var response = await httpClient.PostAsJsonAsync("api/register/teacher", registerRequest);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<RegisterResponse>();
-                if (result?.Success == true)
-                {
-                    successMessage = "Registration successful! You can now login with your credentials.";
-                    registerRequest = new();
-                    isLoginTab = true;
-                }
-                else
-                {
-                    errorMessage = result?.Message ?? "Registration failed";
-                }
-            }
-            else
-            {
-                var errorResult = await response.Content.ReadFromJsonAsync<RegisterResponse>();
-                errorMessage = errorResult?.Message ?? "Registration failed";
-            }
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"An error occurred during registration: {ex.Message}";
-        }
-        finally
-        {
-            isLoading = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task LoadRegions()
-    {
-        try
-        {
-            var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
-            var response = await httpClient.GetFromJsonAsync<List<string>>("api/register/regions");
-            regions = response ?? new List<string>();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading regions: {ex.Message}");
-        }
-    }
-
-    private async Task OnRegionChanged()
-    {
-        registerRequest.Division = "";
-        registerRequest.District = "";
-        divisions.Clear();
-        districts.Clear();
-
-        if (!string.IsNullOrEmpty(registerRequest.Region) && registerRequest.Region != "manual")
-        {
-            await LoadDivisions(registerRequest.Region);
-        }
-
-        StateHasChanged();
-    }
-
-    private async Task OnDivisionChanged()
-    {
-        registerRequest.District = "";
-        districts.Clear();
-
-        if (!string.IsNullOrEmpty(registerRequest.Division) && registerRequest.Division != "manual")
-        {
-            await LoadDistricts(registerRequest.Division);
-        }
-
-        StateHasChanged();
-    }
-
-    private void OnDistrictChanged()
-    {
-        StateHasChanged();
-    }
-
-    private async Task LoadDivisions(string region)
-    {
-        try
-        {
-            var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
-            var url = $"api/register/divisions/{Uri.EscapeDataString(region)}";
-            var response = await httpClient.GetFromJsonAsync<List<string>>(url);
-            divisions = response ?? new List<string>();
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading divisions: {ex.Message}");
-            divisions = new List<string>();
-        }
-    }
-
-    private async Task LoadDistricts(string division)
-    {
-        try
-        {
-            var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
-            var url = $"api/register/districts/{Uri.EscapeDataString(division)}";
-            var response = await httpClient.GetFromJsonAsync<List<string>>(url);
-            districts = response ?? new List<string>();
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading districts: {ex.Message}");
-            districts = new List<string>();
-        }
-    }
 }

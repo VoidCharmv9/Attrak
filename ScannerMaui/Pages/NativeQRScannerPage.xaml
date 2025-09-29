@@ -18,11 +18,22 @@
                BackgroundColor="#007bff" 
                Padding="20,10"
                Margin="0">
-            <Label Text="QR Scanner" 
-                   TextColor="White" 
-                   FontSize="18" 
-                   FontAttributes="Bold"
-                   HorizontalOptions="Center" />
+            <StackLayout Spacing="5">
+                <Label Text="QR Scanner" 
+                       TextColor="White" 
+                       FontSize="18" 
+                       FontAttributes="Bold"
+                       HorizontalOptions="Center" />
+                
+                <!-- Mode Display -->
+                <Label x:Name="modeLabel" 
+                       Text="" 
+                       TextColor="Yellow"
+                       FontSize="16"
+                       FontAttributes="Bold"
+                       HorizontalOptions="Center"
+                       BackgroundColor="Transparent" />
+            </StackLayout>
         </Frame>
         
         <!-- Camera View -->
@@ -67,7 +78,7 @@
                    HorizontalOptions="Center"
                    IsVisible="False" />
             
-            <!-- Buttons -->
+            <!-- Camera Controls -->
             <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
                 <Button Grid.Column="0"
                         x:Name="torchButton"
@@ -78,18 +89,20 @@
                 
                 <Button Grid.Column="1"
                         x:Name="switchButton"
-                        Text="Flip"
+                        Text="Flip Camera"
                         BackgroundColor="Gray"
                         TextColor="White"
                         Clicked="OnSwitchCameraClicked" />
             </Grid>
             
-            <!-- Back Button -->
-            <Button x:Name="backButton"
-                    Text="← Back"
-                    BackgroundColor="Blue"
+            <!-- Done Button -->
+            <Button x:Name="doneButton"
+                    Text="✓ Done"
+                    BackgroundColor="Green"
                     TextColor="White"
-                    Clicked="OnBackClicked" />
+                    FontSize="16"
+                    FontAttributes="Bold"
+                    Clicked="OnDoneClicked" />
         </StackLayout>
     </Grid>
 </ContentPage>
