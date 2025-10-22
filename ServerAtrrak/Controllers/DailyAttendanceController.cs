@@ -191,8 +191,12 @@ namespace ServerAtrrak.Controllers
         {
             try
             {
+                _logger.LogInformation("TimeOut request received for student: {StudentId}, Date: {Date}, TimeOut: {TimeOut}", 
+                    request.StudentId, request.Date, request.TimeOut);
+                
                 if (!ModelState.IsValid)
                 {
+                    _logger.LogWarning("Invalid model state for TimeOut request: {ModelState}", ModelState);
                     return BadRequest(new DailyTimeOutResponse
                     {
                         Success = false,
@@ -202,9 +206,13 @@ namespace ServerAtrrak.Controllers
 
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
+                _logger.LogInformation("Database connection opened successfully");
 
                 // Check if Time In exists for today - get the LATEST record to avoid duplicates
                 var checkQuery = "SELECT AttendanceId, TimeIn, Status, TimeOut FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date ORDER BY CreatedAt DESC LIMIT 1";
+                _logger.LogInformation("Executing query: {Query} with StudentId: {StudentId}, Date: {Date}", 
+                    checkQuery, request.StudentId, request.Date.Date);
+                
                 using var checkCommand = new MySqlCommand(checkQuery, connection);
                 checkCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
                 checkCommand.Parameters.AddWithValue("@Date", request.Date.Date);
@@ -212,6 +220,8 @@ namespace ServerAtrrak.Controllers
                 using var reader = await checkCommand.ExecuteReaderAsync();
                 if (!await reader.ReadAsync())
                 {
+                    _logger.LogWarning("No TimeIn record found for student: {StudentId} on date: {Date}", 
+                        request.StudentId, request.Date.Date);
                     return BadRequest(new DailyTimeOutResponse
                     {
                         Success = false,
@@ -224,10 +234,15 @@ namespace ServerAtrrak.Controllers
                 var currentStatus = reader.GetString("Status");
                 var existingTimeOut = reader.IsDBNull("TimeOut") ? "" : reader.GetString("TimeOut");
                 reader.Close();
+                
+                _logger.LogInformation("Found TimeIn record - AttendanceId: {AttendanceId}, TimeIn: {TimeIn}, Status: {Status}, ExistingTimeOut: {ExistingTimeOut}", 
+                    attendanceId, timeIn, currentStatus, existingTimeOut);
 
                 // Check if Time Out already exists for this specific record
                 if (!string.IsNullOrEmpty(existingTimeOut))
                 {
+                    _logger.LogWarning("TimeOut already exists for student: {StudentId}, existing TimeOut: {ExistingTimeOut}", 
+                        request.StudentId, existingTimeOut);
                     return BadRequest(new DailyTimeOutResponse
                     {
                         Success = false,
@@ -264,13 +279,17 @@ namespace ServerAtrrak.Controllers
                         UpdatedAt = @UpdatedAt
                     WHERE AttendanceId = @AttendanceId";
 
+                _logger.LogInformation("Executing update query: {Query} with TimeOut: {TimeOut}, Remarks: {Remarks}, AttendanceId: {AttendanceId}", 
+                    updateQuery, request.TimeOut.ToString(@"hh\:mm"), remarks, attendanceId);
+
                 using var updateCommand = new MySqlCommand(updateQuery, connection);
                 updateCommand.Parameters.AddWithValue("@TimeOut", request.TimeOut.ToString(@"hh\:mm"));
                 updateCommand.Parameters.AddWithValue("@Remarks", remarks);
                 updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
                 updateCommand.Parameters.AddWithValue("@AttendanceId", attendanceId);
 
-                await updateCommand.ExecuteNonQueryAsync();
+                var rowsAffected = await updateCommand.ExecuteNonQueryAsync();
+                _logger.LogInformation("Update completed, rows affected: {RowsAffected}", rowsAffected);
 
                 _logger.LogInformation("Daily Time Out marked for student: {StudentId}, Remarks: {Remarks}", request.StudentId, remarks);
 
@@ -284,11 +303,12 @@ namespace ServerAtrrak.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error marking daily Time Out for student: {StudentId}", request.StudentId);
+                _logger.LogError(ex, "Error marking daily Time Out for student: {StudentId}, TimeOut: {TimeOut}, Exception: {Exception}", 
+                    request.StudentId, request.TimeOut, ex.ToString());
                 return StatusCode(500, new DailyTimeOutResponse
                 {
                     Success = false,
-                    Message = "An error occurred while marking Time Out"
+                    Message = $"An error occurred while marking Time Out: {ex.Message}"
                 });
             }
         }

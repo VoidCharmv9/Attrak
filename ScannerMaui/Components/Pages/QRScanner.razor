@@ -557,31 +557,7 @@
     }
 </style>
 
-<script>
-    window.playBeepSound = function() {
-        try {
-            // Create a simple beep sound using Web Audio API
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            
-            oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // 800Hz beep
-            oscillator.type = 'sine';
-            
-            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-            
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + 0.2);
-        } catch (error) {
-            console.log('Could not play beep sound:', error);
-        }
-    };
-
-</script>
+<!-- Sound is now handled in native QR scanner -->
 
 @code {
     private string message = string.Empty;
@@ -782,18 +758,7 @@
 
 
 
-    private async Task PlaySuccessSound()
-    {
-        try
-        {
-            // Play a success beep sound
-            await JSRuntime.InvokeVoidAsync("playBeepSound");
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Error playing success sound: {ex.Message}");
-        }
-    }
+    // Sound is now handled in native QR scanner
 
     private bool IsScanningAllowed()
     {
@@ -1168,8 +1133,7 @@
                 message = validationResult.Message;
                 isSuccess = true;
                 
-                // Play success sound
-                await PlaySuccessSound();
+                // Sound is handled in native QR scanner
                 
                 // Reload attendance list to get the latest data
                 await LoadTodayAttendance();
@@ -1326,8 +1290,7 @@
                         // Reload attendance list to get the latest data from server
                         await LoadTodayAttendance();
                         
-                        // Play success sound and show green feedback
-                        await PlaySuccessSound();
+                        // Sound is handled in native QR scanner
                         message = $"✓ Time In: {result.TimeIn} ({result.Status})";
                         isSuccess = true;
                         
@@ -1382,8 +1345,7 @@
                         
                         lastScanResult = feedbackRecord;
                         
-                        // Play success sound and show green feedback
-                        await PlaySuccessSound();
+                        // Sound is handled in native QR scanner
                         message = $"Time Out marked: {result.TimeOut} ({result.Remarks})";
                 isSuccess = true;
             }

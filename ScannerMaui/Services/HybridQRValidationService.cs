@@ -58,15 +58,19 @@ namespace ScannerMaui.Services
 
                 System.Diagnostics.Debug.WriteLine($"Student data parsed successfully: {studentData.StudentId}");
 
-                // Check if online
+                // Check if online - if online, save to MySQL; if offline, save to SQLite
                 bool isOnline = await CheckInternetConnectionAsync();
+                
+                System.Diagnostics.Debug.WriteLine($"Connection status: {(isOnline ? "ONLINE" : "OFFLINE")}");
                 
                 if (isOnline)
                 {
-                    return await ValidateOnlineAsync(studentData, teacher);
+                    // ONLINE MODE: Save to MySQL server
+                    return await ValidateOnlineAsync(studentData, teacher, attendanceType);
                 }
                 else
                 {
+                    // OFFLINE MODE: Save to SQLite, sync later when online
                     return await ValidateOfflineAsync(studentData, teacher, attendanceType);
                 }
             }
@@ -151,20 +155,16 @@ namespace ScannerMaui.Services
             }
         }
 
-        private async Task<QRValidationResult> ValidateOnlineAsync(StudentQRData studentData, TeacherInfo teacher)
+        private async Task<QRValidationResult> ValidateOnlineAsync(StudentQRData studentData, TeacherInfo teacher, string attendanceType)
         {
             try
             {
                 System.Diagnostics.Debug.WriteLine($"=== ONLINE MODE: Saving to MySQL ===");
                 System.Diagnostics.Debug.WriteLine($"Student ID: {studentData.StudentId}");
                 System.Diagnostics.Debug.WriteLine($"Teacher ID: {teacher.TeacherId}");
+                System.Diagnostics.Debug.WriteLine($"Attendance Type: {attendanceType}");
                 
                 var currentTime = DateTime.Now;
-                
-                // Determine attendance type based on current time and existing records
-                var attendanceType = await DetermineAttendanceTypeAsync(studentData.StudentId, teacher.TeacherId);
-                
-                System.Diagnostics.Debug.WriteLine($"Determined attendance type: {attendanceType}");
                 
                 HttpResponseMessage response;
                 
@@ -204,9 +204,6 @@ namespace ScannerMaui.Services
                     var responseContent = await response.Content.ReadAsStringAsync();
                     System.Diagnostics.Debug.WriteLine($"Server response content: {responseContent}");
                     
-                    // Also save to offline storage as backup
-                    await _offlineDataService.SaveOfflineAttendanceAsync(studentData.StudentId, attendanceType, teacher.TeacherId);
-                    
                     var displayType = attendanceType == "TimeIn" ? "Time In" : "Time Out";
                     return new QRValidationResult
                     {
@@ -222,61 +219,64 @@ namespace ScannerMaui.Services
                     System.Diagnostics.Debug.WriteLine($"Error status: {response.StatusCode}");
                     System.Diagnostics.Debug.WriteLine($"Error reason: {response.ReasonPhrase}");
                     
-                    // Fallback to offline storage
-                    System.Diagnostics.Debug.WriteLine("Server failed, saving to offline storage");
-                    var offlineSuccess = await _offlineDataService.SaveOfflineAttendanceAsync(studentData.StudentId, attendanceType, teacher.TeacherId);
+                    // Check if this is a "No Time In found" error for TimeOut
+                    if (attendanceType == "TimeOut" && response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                    {
+                        try
+                        {
+                            var errorResponse = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(errorContent);
+                            if (errorResponse != null && errorResponse.ContainsKey("message"))
+                            {
+                                var errorMessage = errorResponse["message"]?.ToString();
+                                if (errorMessage != null && errorMessage.Contains("No Time In found"))
+                                {
+                                    System.Diagnostics.Debug.WriteLine("TimeOut called without TimeIn - returning error instead of fallback");
+                                    return new QRValidationResult
+                                    {
+                                        IsValid = false,
+                                        Message = "❌ No Time In found for today. Please mark Time In first.",
+                                        StudentData = studentData
+                                    };
+                                }
+                                else if (errorMessage != null && errorMessage.Contains("Time Out already marked"))
+                                {
+                                    System.Diagnostics.Debug.WriteLine("TimeOut already exists - returning error instead of fallback");
+                                    return new QRValidationResult
+                                    {
+                                        IsValid = false,
+                                        Message = "❌ Time Out already marked for today.",
+                                        StudentData = studentData
+                                    };
+                                }
+                            }
+                        }
+                        catch (Exception parseEx)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Error parsing server response: {parseEx.Message}");
+                        }
+                    }
                     
-                    if (offlineSuccess)
+                    // For other server errors, return error (don't fallback to SQLite when online)
+                    System.Diagnostics.Debug.WriteLine("Server error - returning error message");
+                    return new QRValidationResult
                     {
-                        var displayType = attendanceType == "TimeIn" ? "Time In" : "Time Out";
-                        return new QRValidationResult
-                        {
-                            IsValid = true,
-                            Message = $"✓ {displayType} saved offline (server error: {response.StatusCode})",
-                            StudentData = studentData
-                        };
-                    }
-                    else
-                    {
-                        return new QRValidationResult
-                        {
-                            IsValid = false,
-                            Message = $"Failed to save attendance (server error: {response.StatusCode} and offline save failed)",
-                            ErrorType = QRValidationErrorType.ValidationError
-                        };
-                    }
+                        IsValid = false,
+                        Message = $"❌ Server error: {response.StatusCode} - {errorContent}",
+                        StudentData = studentData
+                    };
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Online validation error: {ex.Message}");
                 
-                // Fallback to offline storage
-                try
-                {
-                    var attendanceType = await DetermineAttendanceTypeAsync(studentData.StudentId, teacher.TeacherId);
-                    var offlineSuccess = await _offlineDataService.SaveOfflineAttendanceAsync(studentData.StudentId, attendanceType, teacher.TeacherId);
-                    
-                    if (offlineSuccess)
-                    {
-                        return new QRValidationResult
-                        {
-                            IsValid = true,
-                            Message = $"✓ {attendanceType} saved offline (connection error)",
-                            StudentData = studentData
-                        };
-                    }
-                }
-                catch (Exception offlineEx)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Offline fallback also failed: {offlineEx.Message}");
-                }
-                
+                // Online failed - return error (don't fallback to SQLite when online)
+                System.Diagnostics.Debug.WriteLine("Online validation failed - returning error");
                 return new QRValidationResult
                 {
                     IsValid = false,
-                    Message = $"Error: {ex.Message}",
-                    ErrorType = QRValidationErrorType.ValidationError
+                    Message = $"❌ Connection error: {ex.Message}",
+                    StudentData = studentData
                 };
             }
         }
@@ -457,7 +457,7 @@ namespace ScannerMaui.Services
                             Remarks = remarks,
                             DeviceId = group.First().DeviceId
                         };
-                    }).ToList();
+                }).ToList();
 
                 var syncRequest = new
                 {

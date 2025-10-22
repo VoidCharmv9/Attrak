@@ -270,8 +270,17 @@ namespace ScannerMaui.Pages
         {
             try
             {
-                // Play system beep sound
-                System.Media.SystemSounds.Beep.Play();
+                // Play vibration feedback for mobile devices
+                if (DeviceInfo.Platform == DevicePlatform.Android || DeviceInfo.Platform == DevicePlatform.iOS)
+                {
+                    // Use HapticFeedback for mobile devices
+                    HapticFeedback.Default.Perform(HapticFeedbackType.Click);
+                }
+                else
+                {
+                    // For desktop platforms, use console beep
+                    Console.Beep(800, 200); // 800Hz for 200ms
+                }
             }
             catch (Exception ex)
             {
