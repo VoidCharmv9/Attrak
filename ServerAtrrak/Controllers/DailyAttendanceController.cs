@@ -300,7 +300,7 @@ namespace ServerAtrrak.Controllers
                 using var updateCommand = new MySqlCommand(updateQuery, connection);
                 updateCommand.Parameters.AddWithValue("@TimeOut", request.TimeOut.ToString(@"hh\:mm"));
                 updateCommand.Parameters.AddWithValue("@Remarks", remarks);
-                updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
+                updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.Now);
                 updateCommand.Parameters.AddWithValue("@AttendanceId", attendanceId);
 
                 var rowsAffected = await updateCommand.ExecuteNonQueryAsync();
