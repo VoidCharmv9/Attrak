@@ -5,31 +5,18 @@ namespace ScannerMaui.Services
     public class QRScannerService
     {
         private readonly OfflineDataService _offlineDataService;
-        private readonly ConnectionService _connectionService;
-        private readonly QRValidationService _qrValidationService;
+        private readonly HybridQRValidationService _qrValidationService;
         private string _currentAttendanceType = string.Empty;
 
         public event EventHandler<string>? QRCodeScanned;
         public event EventHandler<string>? OfflineDataSaved;
 
-        public QRScannerService(OfflineDataService offlineDataService, ConnectionService connectionService, QRValidationService qrValidationService)
+        public QRScannerService(OfflineDataService offlineDataService, HybridQRValidationService qrValidationService)
         {
             _offlineDataService = offlineDataService;
-            _connectionService = connectionService;
             _qrValidationService = qrValidationService;
-            
-            // Subscribe to connection status changes for auto-sync
-            _connectionService.ConnectionStatusChanged += OnConnectionStatusChanged;
         }
 
-        private async void OnConnectionStatusChanged(object? sender, bool isOnline)
-        {
-            if (isOnline)
-            {
-                System.Diagnostics.Debug.WriteLine("Connection restored, attempting auto-sync...");
-                await TryAutoSyncAsync();
-            }
-        }
 
         public async Task OpenNativeQRScanner(string attendanceType = "")
         {
@@ -63,15 +50,8 @@ namespace ScannerMaui.Services
             {
                 System.Diagnostics.Debug.WriteLine($"QR Code Scanned: {qrCode}");
                 
-                // Process the QR code based on connection status
-                if (_connectionService.IsOnline)
-                {
-                    await ProcessOnlineQRCode(qrCode);
-                }
-                else
-                {
-                    await ProcessOfflineQRCode(qrCode);
-                }
+                // Process the QR code - connection status is handled by HybridQRValidationService
+                await ProcessQRCode(qrCode);
                 
                 // Notify subscribers about the scanned QR code
                 QRCodeScanned?.Invoke(this, qrCode);
@@ -118,12 +98,9 @@ namespace ScannerMaui.Services
                     OfflineDataSaved?.Invoke(this, qrCode);
                     System.Diagnostics.Debug.WriteLine($"QR code saved offline: {qrCode}");
                     
-                    // Try to auto-sync if connection is available
-                    if (_connectionService.IsOnline)
-                    {
-                        System.Diagnostics.Debug.WriteLine("Connection detected, attempting auto-sync...");
-                        await TryAutoSyncAsync();
-                    }
+                    // Try to auto-sync - connection status is handled by HybridQRValidationService
+                    System.Diagnostics.Debug.WriteLine("Attempting auto-sync...");
+                    await TryAutoSyncAsync();
                 }
                 else
                 {
@@ -186,12 +163,62 @@ namespace ScannerMaui.Services
 
         public bool IsOnline()
         {
-            return _connectionService.IsOnline;
+            // Connection status is now handled by HybridQRValidationService
+            return true; // Default to true, actual status checked by HybridQRValidationService
         }
 
         public string GetConnectionStatus()
         {
-            return _connectionService.GetConnectionStatusText();
+            return "Connection status handled by HybridQRValidationService";
+        }
+
+        public async Task ProcessQRCode(string qrCode)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"=== Processing QR Code: {qrCode} ===");
+                
+                // Use HybridQRValidationService to validate the QR code
+                // This service automatically handles online/offline switching and saving
+                var result = await _qrValidationService.ValidateQRCodeAsync(qrCode);
+                
+                if (result.IsValid)
+                {
+                    System.Diagnostics.Debug.WriteLine($"QR code validation successful: {result.Message}");
+                    OfflineDataSaved?.Invoke(this, qrCode);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"QR code validation failed: {result.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error processing QR code: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            }
+        }
+
+        public async Task<bool> SyncIndividualRecordAsync(OfflineAttendanceRecord record)
+        {
+            try
+            {
+                // Use HybridQRValidationService to sync the record
+                var success = await _qrValidationService.SyncOfflineDataAsync();
+                
+                if (success)
+                {
+                    // Mark as synced in local database
+                    await _offlineDataService.MarkAsSyncedAsync(record.Id);
+                    return true;
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error syncing individual record: {ex.Message}");
+                return false;
+            }
         }
     }
 }

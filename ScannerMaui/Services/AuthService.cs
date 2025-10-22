@@ -7,17 +7,15 @@ namespace ScannerMaui.Services
     {
         private UserInfo? _currentUser;
         private readonly OfflineDataService _offlineDataService;
-        private readonly ConnectionService _connectionService;
         private const string USER_KEY = "current_user";
 
         public bool IsAuthenticated => _currentUser != null;
         public bool IsOfflineMode { get; private set; } = false;
         public event Action<bool> AuthenticationStateChanged = delegate { };
 
-        public AuthService(OfflineDataService offlineDataService, ConnectionService connectionService)
+        public AuthService(OfflineDataService offlineDataService)
         {
             _offlineDataService = offlineDataService;
-            _connectionService = connectionService;
         }
 
         public async Task<UserInfo?> GetCurrentUserAsync()
@@ -120,12 +118,8 @@ namespace ScannerMaui.Services
             try
             {
                 // Check if server is reachable
-                var isServerReachable = await _connectionService.TestServerConnectionAsync(serverUrl);
-                if (!isServerReachable)
-                {
-                    System.Diagnostics.Debug.WriteLine("Server not reachable, falling back to offline mode");
-                    return await LoginOfflineAsync(username, password);
-                }
+                // Note: Connection checking is now handled by HybridQRValidationService
+                // For now, try online authentication first
 
                 // Make API call to server for authentication
                 using var httpClient = new HttpClient();
@@ -212,12 +206,13 @@ namespace ScannerMaui.Services
 
         public string GetConnectionStatus()
         {
-            return _connectionService.GetConnectionStatusText();
+            return "Connection status handled by HybridQRValidationService";
         }
 
         public bool IsOnline()
         {
-            return _connectionService.IsOnline;
+            // Connection status is now handled by HybridQRValidationService
+            return true; // Default to true, actual status checked by HybridQRValidationService
         }
     }
 }

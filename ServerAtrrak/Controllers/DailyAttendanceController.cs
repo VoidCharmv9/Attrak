@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using AttrackSharedClass.Models;
 using ServerAtrrak.Services;
+using ServerAtrrak.Models;
 using MySql.Data.MySqlClient;
 using ServerAtrrak.Data;
 using System.Data;
@@ -345,6 +346,120 @@ namespace ServerAtrrak.Controllers
             {
                 _logger.LogError(ex, "Error getting daily history for student: {StudentId}", studentId);
                 return StatusCode(500, new List<DailyAttendanceRecord>());
+            }
+        }
+
+        [HttpPost("sync-offline-data")]
+        public async Task<ActionResult<SyncOfflineDataResponse>> SyncOfflineData([FromBody] SyncOfflineDataRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(new SyncOfflineDataResponse
+                    {
+                        Success = false,
+                        Message = "Invalid request data"
+                    });
+                }
+
+                _logger.LogInformation("Syncing offline data for teacher: {TeacherId}, Records count: {Count}", 
+                    request.TeacherId, request.AttendanceRecords.Count);
+
+                using var connection = new MySqlConnection(_dbConnection.GetConnection());
+                await connection.OpenAsync();
+
+                var syncedCount = 0;
+                var errors = new List<string>();
+
+                foreach (var record in request.AttendanceRecords)
+                {
+                    try
+                    {
+                        // Check if record already exists
+                        var checkQuery = "SELECT COUNT(*) FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date";
+                        using var checkCommand = new MySqlCommand(checkQuery, connection);
+                        checkCommand.Parameters.AddWithValue("@StudentId", record.StudentId);
+                        checkCommand.Parameters.AddWithValue("@Date", record.Date.Date);
+
+                        var existingCount = Convert.ToInt32(await checkCommand.ExecuteScalarAsync());
+
+                        if (existingCount > 0)
+                        {
+                            // Update existing record
+                            var updateQuery = @"
+                                UPDATE daily_attendance 
+                                SET TimeIn = COALESCE(@TimeIn, TimeIn),
+                                    TimeOut = COALESCE(@TimeOut, TimeOut),
+                                    Status = @Status,
+                                    Remarks = @Remarks,
+                                    UpdatedAt = @UpdatedAt
+                                WHERE StudentId = @StudentId AND Date = @Date";
+
+                            using var updateCommand = new MySqlCommand(updateQuery, connection);
+                            updateCommand.Parameters.AddWithValue("@StudentId", record.StudentId);
+                            updateCommand.Parameters.AddWithValue("@Date", record.Date.Date);
+                            updateCommand.Parameters.AddWithValue("@TimeIn", string.IsNullOrEmpty(record.TimeIn) ? (object)DBNull.Value : record.TimeIn);
+                            updateCommand.Parameters.AddWithValue("@TimeOut", string.IsNullOrEmpty(record.TimeOut) ? (object)DBNull.Value : record.TimeOut);
+                            updateCommand.Parameters.AddWithValue("@Status", record.Status);
+                            updateCommand.Parameters.AddWithValue("@Remarks", record.Remarks ?? "");
+                            updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
+
+                            await updateCommand.ExecuteNonQueryAsync();
+                        }
+                        else
+                        {
+                            // Insert new record
+                            var insertQuery = @"
+                                INSERT INTO daily_attendance (AttendanceId, StudentId, Date, TimeIn, TimeOut, Status, Remarks, CreatedAt, UpdatedAt)
+                                VALUES (@AttendanceId, @StudentId, @Date, @TimeIn, @TimeOut, @Status, @Remarks, @CreatedAt, @UpdatedAt)";
+
+                            using var insertCommand = new MySqlCommand(insertQuery, connection);
+                            insertCommand.Parameters.AddWithValue("@AttendanceId", Guid.NewGuid().ToString());
+                            insertCommand.Parameters.AddWithValue("@StudentId", record.StudentId);
+                            insertCommand.Parameters.AddWithValue("@Date", record.Date.Date);
+                            insertCommand.Parameters.AddWithValue("@TimeIn", string.IsNullOrEmpty(record.TimeIn) ? (object)DBNull.Value : record.TimeIn);
+                            insertCommand.Parameters.AddWithValue("@TimeOut", string.IsNullOrEmpty(record.TimeOut) ? (object)DBNull.Value : record.TimeOut);
+                            insertCommand.Parameters.AddWithValue("@Status", record.Status);
+                            insertCommand.Parameters.AddWithValue("@Remarks", record.Remarks ?? "");
+                            insertCommand.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
+                            insertCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
+
+                            await insertCommand.ExecuteNonQueryAsync();
+                        }
+
+                        syncedCount++;
+                        _logger.LogInformation("Synced offline record for student: {StudentId}, Date: {Date}", 
+                            record.StudentId, record.Date);
+                    }
+                    catch (Exception ex)
+                    {
+                        var error = $"Error syncing record for student {record.StudentId}: {ex.Message}";
+                        errors.Add(error);
+                        _logger.LogError(ex, "Error syncing offline record for student: {StudentId}", record.StudentId);
+                    }
+                }
+
+                _logger.LogInformation("Offline sync completed. Synced: {SyncedCount}, Errors: {ErrorCount}", 
+                    syncedCount, errors.Count);
+
+                return Ok(new SyncOfflineDataResponse
+                {
+                    Success = true,
+                    Message = $"Successfully synced {syncedCount} records",
+                    SyncedCount = syncedCount,
+                    ErrorCount = errors.Count,
+                    Errors = errors
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error syncing offline data for teacher: {TeacherId}", request.TeacherId);
+                return StatusCode(500, new SyncOfflineDataResponse
+                {
+                    Success = false,
+                    Message = "An error occurred while syncing offline data"
+                });
             }
         }
     }

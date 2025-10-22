@@ -2,7 +2,7 @@
 @using ScannerMaui.Services
 @inject AuthService AuthService
 @inject OfflineDataService OfflineDataService
-@inject ConnectionService ConnectionService
+@inject ConnectionStatusService ConnectionStatusService
 
 <PageTitle>Offline Setup</PageTitle>
 
@@ -10,8 +10,8 @@
     <div class="setup-header">
         <h2>📱 Offline Mode Setup</h2>
         <div class="connection-status">
-            <span class="status-indicator @(ConnectionService.IsOnline ? "online" : "offline")">
-                @ConnectionService.GetConnectionStatusText()
+            <span class="status-indicator @(ConnectionStatusService.IsOnline ? "online" : (ConnectionStatusService.IsChecking ? "checking" : "offline"))">
+                @ConnectionStatusService.StatusText
             </span>
         </div>
     </div>
@@ -29,8 +29,8 @@
                 </div>
                 <div class="status-item">
                     <span class="status-label">Connection:</span>
-                    <span class="status-value @(ConnectionService.IsOnline ? "online" : "offline")">
-                        @ConnectionService.GetConnectionStatusText()
+                    <span class="status-value @(ConnectionStatusService.IsOnline ? "online" : (ConnectionStatusService.IsChecking ? "checking" : "offline"))">
+                        @ConnectionStatusService.StatusText
                     </span>
                 </div>
                 <div class="status-item">

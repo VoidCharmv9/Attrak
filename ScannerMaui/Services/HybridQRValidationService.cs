@@ -1,6 +1,7 @@
 using AttrackSharedClass.Models;
 using System.Text.Json;
 using System.Net.Http;
+using System.Net.Http.Json;
 
 namespace ScannerMaui.Services
 {
@@ -37,7 +38,7 @@ namespace ScannerMaui.Services
                 }
 
                 var studentData = ParseQRCodeData(qrCodeData, teacher);
-                if (studentData == null)
+                if (studentData is null)
                 {
                     return new QRValidationResult
                     {
@@ -165,13 +166,50 @@ namespace ScannerMaui.Services
 
         private async Task<QRValidationResult> ValidateOfflineAsync(StudentQRData studentData, TeacherInfo teacher)
         {
-            // For offline mode, just allow the scan and save to SQLite
-            return new QRValidationResult
+            try
             {
-                IsValid = true,
-                Message = $"Valid student (offline mode): {studentData.StudentId}",
-                StudentData = studentData
-            };
+                System.Diagnostics.Debug.WriteLine($"=== OFFLINE MODE: Saving to SQLite ===");
+                System.Diagnostics.Debug.WriteLine($"Student ID: {studentData.StudentId}");
+                System.Diagnostics.Debug.WriteLine($"Teacher ID: {teacher.TeacherId}");
+                
+                // Save to SQLite database
+                var success = await _offlineDataService.SaveOfflineAttendanceAsync(
+                    studentData.StudentId, 
+                    "TimeIn", // Default to TimeIn for offline mode
+                    teacher.TeacherId
+                );
+                
+                System.Diagnostics.Debug.WriteLine($"SQLite save result: {success}");
+                
+                if (success)
+                {
+                    return new QRValidationResult
+                    {
+                        IsValid = true,
+                        Message = $"Student {studentData.StudentId} saved offline (will sync when online)",
+                        StudentData = studentData
+                    };
+                }
+                else
+                {
+                    return new QRValidationResult
+                    {
+                        IsValid = false,
+                        Message = "Failed to save offline record",
+                        ErrorType = QRValidationErrorType.ValidationError
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in offline validation: {ex.Message}");
+                return new QRValidationResult
+                {
+                    IsValid = false,
+                    Message = $"Offline save error: {ex.Message}",
+                    ErrorType = QRValidationErrorType.ValidationError
+                };
+            }
         }
 
         // Sync offline data to server when online
@@ -179,20 +217,69 @@ namespace ScannerMaui.Services
         {
             try
             {
-                var unsyncedRecords = await _offlineDataService.GetUnsyncedAttendanceAsync();
+                System.Diagnostics.Debug.WriteLine("=== Starting Offline Data Sync ===");
                 
-                foreach (var record in unsyncedRecords)
+                var unsyncedRecords = await _offlineDataService.GetUnsyncedAttendanceAsync();
+                System.Diagnostics.Debug.WriteLine($"Found {unsyncedRecords.Count} unsynced records");
+                
+                if (!unsyncedRecords.Any())
                 {
-                    var success = await SendAttendanceToServerAsync(record);
-                    if (success)
+                    System.Diagnostics.Debug.WriteLine("No unsynced records to sync");
+                    return true;
+                }
+
+                var teacher = await _authService.GetCurrentTeacherAsync();
+                if (teacher == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("No teacher logged in, cannot sync");
+                    return false;
+                }
+
+                // Convert offline records to server format
+                var attendanceRecords = unsyncedRecords.Select(record => new
+                {
+                    StudentId = record.StudentId,
+                    Date = record.ScanTime.Date,
+                    TimeIn = record.AttendanceType == "TimeIn" ? record.ScanTime.ToString("HH:mm") : null,
+                    TimeOut = record.AttendanceType == "TimeOut" ? record.ScanTime.ToString("HH:mm") : null,
+                    Status = "Present",
+                    Remarks = record.AttendanceType == "TimeIn" ? "Synced from offline" : "Synced from offline",
+                    DeviceId = record.DeviceId
+                }).ToList();
+
+                var syncRequest = new
+                {
+                    TeacherId = teacher.TeacherId,
+                    AttendanceRecords = attendanceRecords
+                };
+
+                System.Diagnostics.Debug.WriteLine($"Sending {attendanceRecords.Count} records to server for sync");
+                
+                var response = await _httpClient.PostAsJsonAsync($"{_serverBaseUrl}api/dailyattendance/sync-offline-data", syncRequest);
+                
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadFromJsonAsync<dynamic>();
+                    System.Diagnostics.Debug.WriteLine($"Sync successful: {result}");
+                    
+                    // Mark all records as synced
+                    foreach (var record in unsyncedRecords)
                     {
                         await _offlineDataService.MarkAsSyncedAsync(record.Id);
                     }
+                    
+                    System.Diagnostics.Debug.WriteLine($"Marked {unsyncedRecords.Count} records as synced");
+                    return true;
                 }
-                return true;
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Sync failed with status: {response.StatusCode}");
+                    return false;
+                }
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"Error syncing offline data: {ex.Message}");
                 return false;
             }
         }
@@ -224,5 +311,35 @@ namespace ScannerMaui.Services
         public bool IsValid { get; set; }
         public string Message { get; set; } = string.Empty;
         public StudentQRData? StudentData { get; set; }
+    }
+
+    public class QRValidationResult
+    {
+        public bool IsValid { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public QRValidationErrorType ErrorType { get; set; }
+        public StudentQRData? StudentData { get; set; }
+    }
+
+    public enum QRValidationErrorType
+    {
+        None,
+        NoTeacher,
+        StudentNotFound,
+        InvalidFormat,
+        SchoolMismatch,
+        GradeMismatch,
+        SectionMismatch,
+        ValidationError
+    }
+
+    public class StudentQRData
+    {
+        public string StudentId { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
+        public int GradeLevel { get; set; }
+        public string Section { get; set; } = string.Empty;
+        public string SchoolId { get; set; } = string.Empty;
+        public string? Strand { get; set; }
     }
 }

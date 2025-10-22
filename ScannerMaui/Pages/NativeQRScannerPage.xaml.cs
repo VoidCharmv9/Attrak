@@ -10,7 +10,7 @@ namespace ScannerMaui.Pages
         private CameraLocation _currentCameraLocation = CameraLocation.Rear;
         private bool _isTorchOn = false;
         private string _currentAttendanceType = string.Empty;
-        private QRValidationService? _qrValidationService;
+        private HybridQRValidationService? _qrValidationService;
 
         public event EventHandler<string>? QRCodeScanned;
         public event EventHandler<string>? AttendanceTypeSelected;
@@ -21,7 +21,7 @@ namespace ScannerMaui.Pages
             System.Diagnostics.Debug.WriteLine("NativeQRScannerPage created successfully");
         }
 
-        public NativeQRScannerPage(QRValidationService qrValidationService) : this()
+        public NativeQRScannerPage(HybridQRValidationService qrValidationService) : this()
         {
             _qrValidationService = qrValidationService;
         }

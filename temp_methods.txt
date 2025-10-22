@@ -1,0 +1,41 @@
+    // Offline Records Methods
+    private async Task ShowOfflineRecords()
+    {
+        try
+        {
+            offlineRecords = await OfflineDataService.GetUnsyncedAttendanceAsync();
+            showOfflineRecordsModal = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading offline records: {ex.Message}");
+        }
+    }
+
+    private async Task SyncIndividualRecord(int recordId)
+    {
+        try
+        {
+            // Find the record
+            var record = offlineRecords.FirstOrDefault(r => r.Id == recordId);
+            if (record == null) return;
+
+            // Use QRScannerService to sync
+            var success = await QRScannerService.SyncIndividualRecordAsync(record);
+            
+            if (success)
+            {
+                // Mark as synced in the list
+                record.IsSynced = true;
+                StateHasChanged();
+                
+                // Refresh the offline record count
+                await LoadOfflineRecordCount();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error syncing individual record: {ex.Message}");
+        }
+    }

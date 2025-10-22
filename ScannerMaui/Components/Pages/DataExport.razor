@@ -2,8 +2,8 @@
 @using ScannerMaui.Services
 @inject QRScannerService QRScannerService
 @inject OfflineDataService OfflineDataService
-@inject ConnectionService ConnectionService
 @inject AuthService AuthService
+@inject ConnectionStatusService ConnectionStatusService
 
 <PageTitle>Data Export & Sync</PageTitle>
 
@@ -11,8 +11,8 @@
     <div class="export-header">
         <h2>📊 Data Export & Sync</h2>
         <div class="connection-status">
-            <span class="status-indicator @(ConnectionService.IsOnline ? "online" : "offline")">
-                @ConnectionService.GetConnectionStatusText()
+            <span class="status-indicator @(ConnectionStatusService.IsOnline ? "online" : (ConnectionStatusService.IsChecking ? "checking" : "offline"))">
+                @ConnectionStatusService.StatusText
             </span>
         </div>
     </div>
@@ -49,7 +49,7 @@
                     }
                 </button>
 
-                <button class="btn btn-success" @onclick="SyncToServer" disabled="@(isSyncing || !ConnectionService.IsOnline)">
+                <button class="btn btn-success" @onclick="SyncToServer" disabled="@(isSyncing || !ConnectionStatusService.IsOnline)">
                     @if (isSyncing)
                     {
                         <span>⏳ Syncing...</span>

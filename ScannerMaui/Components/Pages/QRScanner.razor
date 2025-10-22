@@ -8,8 +8,8 @@
 @inject AuthService AuthService
 @inject IJSRuntime JSRuntime
 @inject ScannerMaui.Services.QRScannerService QRScannerService
-@inject ScannerMaui.Services.ConnectionService ConnectionService
 @inject ScannerMaui.Services.OfflineDataService OfflineDataService
+@inject ScannerMaui.Services.ConnectionStatusService ConnectionStatusService
 @implements IDisposable
 
 <PageTitle>QR Scanner - Attrak</PageTitle>
@@ -21,8 +21,8 @@
         <div class="col-12 text-center">
             <div class="d-flex justify-content-between align-items-center mb-1">
                 <div class="connection-status">
-                    <span class="badge @(ConnectionService.IsOnline ? "bg-success" : "bg-danger")">
-                        @ConnectionService.GetConnectionStatusText()
+                    <span class="badge @(ConnectionStatusService.IsOnline ? "bg-success" : (ConnectionStatusService.IsChecking ? "bg-warning" : "bg-danger"))">
+                        @ConnectionStatusService.StatusText
                     </span>
                 </div>
                 <h5 class="mb-0">Attendance Scanner</h5>
@@ -220,6 +220,122 @@
         </div>
     }
 
+    <!-- Debug: Always show offline records section -->
+    <div class="row mt-3">
+        <div class="col-12">
+            <div class="card border-info">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">Debug: Offline Records Count = @offlineRecordCount</h6>
+                </div>
+                <div class="card-body">
+                    <p>This section is always visible for debugging.</p>
+                    <button class="btn btn-sm btn-primary" @onclick="LoadOfflineRecordCount">Refresh Count</button>
+                    <button class="btn btn-sm btn-success" @onclick="CreateTestOfflineRecord">Create Test Record</button>
+                    <button class="btn btn-sm btn-warning" @onclick="ForceDatabaseInit">Force DB Init</button>
+                    <button class="btn btn-sm btn-danger" @onclick="TestOfflineMode">Test Offline Mode</button>
+                    <button class="btn btn-sm btn-info" @onclick="TestDatabaseConnection">Test DB Connection</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Offline Records Section -->
+    @if (offlineRecordCount > 0)
+    {
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card border-warning">
+                    <div class="card-header bg-warning text-dark py-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="fas fa-database me-2"></i>Offline Records (@offlineRecordCount pending)
+                            </h6>
+                            <div>
+                                @if (isAutoSyncing)
+                                {
+                                    <button class="btn btn-sm btn-success me-2" @onclick="TriggerAutoSync" disabled="true">
+                                        <i class="fas fa-spinner fa-spin me-1"></i>Syncing...
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-success me-2" @onclick="TriggerAutoSync" disabled="false">
+                                        <i class="fas fa-sync me-1"></i>Sync All
+                                    </button>
+                                }
+                                <button class="btn btn-sm btn-info" @onclick="ShowOfflineRecords">
+                                    <i class="fas fa-list me-1"></i>View Details
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body py-2">
+                        <div class="alert alert-warning mb-2">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Offline Mode:</strong> These records are saved locally and will be synced when connection is restored.
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Student ID</th>
+                                        <th>Type</th>
+                                        <th>Scan Time</th>
+                                        <th>Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var record in offlineRecords.Take(5))
+                                    {
+                                        <tr>
+                                            <td>
+                                                <code>@record.StudentId</code>
+                                            </td>
+                                            <td>
+                                                <span class="badge @(record.AttendanceType == "TimeIn" ? "bg-success" : "bg-warning")">
+                                                    @record.AttendanceType
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <small>@record.ScanTime.ToString("MM/dd HH:mm:ss")</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge @(record.IsSynced ? "bg-success" : "bg-warning")">
+                                                    @(record.IsSynced ? "Synced" : "Pending")
+                                                </span>
+                                            </td>
+                                            <td>
+                                                @if (!record.IsSynced)
+                                                {
+                                                    <button class="btn btn-sm btn-primary" @onclick="() => SyncIndividualRecord(record.Id)">
+                                                        <i class="fas fa-sync me-1"></i>Sync
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">Already synced</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                    @if (offlineRecordCount > 5)
+                                    {
+                                        <tr>
+                                            <td colspan="5" class="text-center">
+                                                <small class="text-muted">... and @(offlineRecordCount - 5) more records</small>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
     <!-- Database Info Modal -->
     @if (showDatabaseInfo)
     {
@@ -244,8 +360,8 @@
                                 </div>
                                 <div class="mb-3">
                                     <strong>Connection:</strong> 
-                                    <span class="badge @(ConnectionService.IsOnline ? "bg-success" : "bg-danger")">
-                                        @ConnectionService.GetConnectionStatusText()
+                                    <span class="badge @(ConnectionStatusService.IsOnline ? "bg-success" : (ConnectionStatusService.IsChecking ? "bg-warning" : "bg-danger"))">
+                                        @ConnectionStatusService.StatusText
                                     </span>
                                 </div>
                                 <div class="mb-3">
@@ -253,15 +369,20 @@
                                     <span class="badge bg-info">@offlineRecordCount pending</span>
                                     @if (offlineRecordCount > 0)
                                     {
-                                        <button class="btn btn-sm btn-success ms-2" @onclick="TriggerAutoSync" disabled="@isAutoSyncing">
-                                            @if (isAutoSyncing)
-                                            {
-                                                <i class="fas fa-spinner fa-spin me-1">Syncing...</i>
-                                            }
-                                            else
-                                            {
-                                                <i class="fas fa-sync me-1">Sync Now</i>
-                                            }
+                                        @if (isAutoSyncing)
+                                        {
+                                            <button class="btn btn-sm btn-success ms-2" @onclick="TriggerAutoSync" disabled="true">
+                                                <i class="fas fa-spinner fa-spin me-1"></i>Syncing...
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-success ms-2" @onclick="TriggerAutoSync" disabled="false">
+                                                <i class="fas fa-sync me-1"></i>Sync Now
+                                            </button>
+                                        }
+                                        <button class="btn btn-sm btn-info ms-1" @onclick="ShowOfflineRecords">
+                                            <i class="fas fa-list me-1">View List</i>
                                         </button>
                                     }
                                 </div>
@@ -474,6 +595,7 @@
     
     // Timer for updating current time display
     private Timer? timeUpdateTimer;
+    private Timer? connectionCheckTimer;
     
     // Offline mode variables
     private int offlineRecordCount = 0;
@@ -481,6 +603,8 @@
     private bool isAutoSyncing = false;
     private bool showPendingModal = false;
     private List<PendingStudent> pendingStudents = new();
+    private bool showOfflineRecordsModal = false;
+    private List<OfflineAttendanceRecord> offlineRecords = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -492,10 +616,16 @@
         QRScannerService.OfflineDataSaved += OnOfflineDataSaved;
         
         // Subscribe to connection status changes
-        ConnectionService.ConnectionStatusChanged += OnConnectionStatusChanged;
+        ConnectionStatusService.ConnectionStatusChanged += OnConnectionStatusChanged;
+        
+        // Check connection status on startup
+        await ConnectionStatusService.CheckConnectionAsync();
         
         // Start timer to update current time display every second
         timeUpdateTimer = new Timer(async _ => await InvokeAsync(StateHasChanged), null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+        
+        // Start connection check timer (every 30 seconds)
+        connectionCheckTimer = new Timer(async _ => await ConnectionStatusService.CheckConnectionAsync(), null, TimeSpan.Zero, TimeSpan.FromSeconds(30));
     }
     
     public void Dispose()
@@ -503,10 +633,11 @@
         // Unsubscribe from events
         QRScannerService.QRCodeScanned -= OnQRCodeScanned;
         QRScannerService.OfflineDataSaved -= OnOfflineDataSaved;
-        ConnectionService.ConnectionStatusChanged -= OnConnectionStatusChanged;
+        ConnectionStatusService.ConnectionStatusChanged -= OnConnectionStatusChanged;
         
-        // Dispose timer
+        // Dispose timers
         timeUpdateTimer?.Dispose();
+        connectionCheckTimer?.Dispose();
     }
 
     private async Task LoadCurrentTeacher()
@@ -1516,12 +1647,141 @@
     {
         try
         {
+            System.Diagnostics.Debug.WriteLine("Loading offline record count...");
             offlineRecordCount = await QRScannerService.GetOfflineRecordCountAsync();
+            System.Diagnostics.Debug.WriteLine($"Offline record count loaded: {offlineRecordCount}");
             StateHasChanged();
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error loading offline record count: {ex.Message}");
+        }
+    }
+
+    private async Task CreateTestOfflineRecord()
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("=== Creating test offline record ===");
+            System.Diagnostics.Debug.WriteLine($"OfflineDataService is null: {OfflineDataService == null}");
+            
+            if (OfflineDataService == null)
+            {
+                System.Diagnostics.Debug.WriteLine("ERROR: OfflineDataService is null!");
+                return;
+            }
+            
+            System.Diagnostics.Debug.WriteLine("Calling SaveOfflineAttendanceAsync...");
+            var success = await OfflineDataService.SaveOfflineAttendanceAsync("TEST-STUDENT-001", "TimeIn");
+            System.Diagnostics.Debug.WriteLine($"SaveOfflineAttendanceAsync result: {success}");
+            
+            if (success)
+            {
+                System.Diagnostics.Debug.WriteLine("Test offline record created successfully");
+                System.Diagnostics.Debug.WriteLine("Loading offline record count...");
+                await LoadOfflineRecordCount();
+                System.Diagnostics.Debug.WriteLine($"New offline record count: {offlineRecordCount}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("Failed to create test offline record");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error creating test offline record: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+        }
+    }
+
+    private async Task ForceDatabaseInit()
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("=== Force Database Initialization ===");
+            System.Diagnostics.Debug.WriteLine($"OfflineDataService is null: {OfflineDataService == null}");
+            
+            if (OfflineDataService == null)
+            {
+                System.Diagnostics.Debug.WriteLine("ERROR: OfflineDataService is null!");
+                return;
+            }
+            
+            // Try to create a test record to force database creation
+            System.Diagnostics.Debug.WriteLine("Attempting to create test record to force database initialization...");
+            var success = await OfflineDataService.SaveOfflineAttendanceAsync("FORCE-INIT-001", "TimeIn");
+            System.Diagnostics.Debug.WriteLine($"Force init result: {success}");
+            
+            // Now try to get the count
+            System.Diagnostics.Debug.WriteLine("Getting count after force init...");
+            await LoadOfflineRecordCount();
+            System.Diagnostics.Debug.WriteLine($"Count after force init: {offlineRecordCount}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error in force database init: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+        }
+    }
+
+    private async Task TestOfflineMode()
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("=== Testing Offline Mode ===");
+            System.Diagnostics.Debug.WriteLine("Simulating QR code scan in offline mode...");
+            
+            // Simulate scanning a QR code
+            var testQRCode = "TEST-OFFLINE-001";
+            System.Diagnostics.Debug.WriteLine($"Simulating QR scan: {testQRCode}");
+            
+            // This should trigger the hybrid validation service
+            await QRScannerService.ProcessQRCode(testQRCode);
+            
+            // Wait a bit for processing
+            await Task.Delay(1000);
+            
+            // Check the count
+            await LoadOfflineRecordCount();
+            System.Diagnostics.Debug.WriteLine($"Count after offline test: {offlineRecordCount}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error in offline mode test: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+        }
+    }
+
+    private async Task TestDatabaseConnection()
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("=== Testing Database Connection ===");
+            System.Diagnostics.Debug.WriteLine($"OfflineDataService is null: {OfflineDataService == null}");
+            
+            if (OfflineDataService == null)
+            {
+                System.Diagnostics.Debug.WriteLine("ERROR: OfflineDataService is null!");
+                return;
+            }
+            
+            System.Diagnostics.Debug.WriteLine("Testing database connection...");
+            var success = await OfflineDataService.TestDatabaseConnectionAsync();
+            System.Diagnostics.Debug.WriteLine($"Database connection test result: {success}");
+            
+            if (success)
+            {
+                System.Diagnostics.Debug.WriteLine("Database connection test PASSED!");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("Database connection test FAILED!");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error testing database connection: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
         }
     }
 
@@ -1715,10 +1975,15 @@
         StateHasChanged();
         
         // Try auto-sync if connection is available
-        if (ConnectionService.IsOnline)
+        // Note: Connection checking is now handled by HybridQRValidationService
+        try
         {
-            System.Diagnostics.Debug.WriteLine("Connection available, attempting auto-sync...");
+            System.Diagnostics.Debug.WriteLine("Attempting auto-sync...");
             await TriggerAutoSyncSilent();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Auto-sync failed: {ex.Message}");
         }
     }
 
@@ -1731,8 +1996,44 @@
         if (isOnline && offlineRecordCount > 0)
         {
             System.Diagnostics.Debug.WriteLine("Connection restored with pending offline records, attempting auto-sync...");
-            // Don't show UI feedback for automatic sync on connection restore
             await TriggerAutoSyncSilent();
+        }
+    }
+
+    // Offline Records Methods
+    private async Task ShowOfflineRecords()
+    {
+        try
+        {
+            offlineRecords = await OfflineDataService.GetUnsyncedAttendanceAsync();
+            showOfflineRecordsModal = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading offline records: {ex.Message}");
+        }
+    }
+
+    private async Task SyncIndividualRecord(int recordId)
+    {
+        try
+        {
+            var record = offlineRecords.FirstOrDefault(r => r.Id == recordId);
+            if (record == null) return;
+
+            var success = await QRScannerService.SyncIndividualRecordAsync(record);
+            
+            if (success)
+            {
+                record.IsSynced = true;
+                StateHasChanged();
+                await LoadOfflineRecordCount();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error syncing individual record: {ex.Message}");
         }
     }
 
@@ -1972,6 +2273,95 @@
                     {
                         <button type="button" class="btn btn-success" @onclick="TriggerAutoSync">
                             <i class="fas fa-sync me-1"></i>Sync All
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Offline Records Modal -->
+@if (showOfflineRecordsModal)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-database me-2"></i>Offline Records (@offlineRecords.Count)
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => showOfflineRecordsModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    @if (offlineRecords.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Student ID</th>
+                                        <th>Type</th>
+                                        <th>Scan Time</th>
+                                        <th>Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var record in offlineRecords)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <code>@record.StudentId</code>
+                                            </td>
+                                            <td>
+                                                <span class="badge @(record.AttendanceType == "TimeIn" ? "bg-success" : "bg-warning")">
+                                                    @record.AttendanceType
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <small>@record.ScanTime.ToString("MM/dd HH:mm:ss")</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge @(record.IsSynced ? "bg-success" : "bg-warning")">
+                                                    @(record.IsSynced ? "Synced" : "Pending")
+                                                </span>
+                                            </td>
+                                            <td>
+                                                @if (!record.IsSynced)
+                                                {
+                                                    <button class="btn btn-sm btn-primary" @onclick="() => SyncIndividualRecord(record.Id)">
+                                                        <i class="fas fa-sync me-1"></i>Sync
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">Already synced</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-4">
+                            <i class="fas fa-check-circle text-success fa-3x mb-3"></i>
+                            <h5>No Offline Records</h5>
+                            <p class="text-muted">All records have been synced successfully!</p>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => showOfflineRecordsModal = false">
+                        Close
+                    </button>
+                    @if (offlineRecords.Any(r => !r.IsSynced))
+                    {
+                        <button type="button" class="btn btn-success" @onclick="TriggerAutoSync">
+                            <i class="fas fa-sync me-1"></i>Sync All Pending
                         </button>
                     }
                 </div>

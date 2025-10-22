@@ -21,14 +21,20 @@ namespace ScannerMaui.Services
             // Log the database path for debugging
             System.Diagnostics.Debug.WriteLine($"SQLite Database Path: {_databasePath}");
             System.Diagnostics.Debug.WriteLine($"App Data Directory: {FileSystem.AppDataDirectory}");
+            System.Diagnostics.Debug.WriteLine($"Database file exists: {File.Exists(_databasePath)}");
         }
 
         private void InitializeDatabase()
         {
             try
             {
+                System.Diagnostics.Debug.WriteLine("=== Initializing SQLite Database ===");
+                System.Diagnostics.Debug.WriteLine($"Database path: {_databasePath}");
+                System.Diagnostics.Debug.WriteLine($"App data directory: {FileSystem.AppDataDirectory}");
+                
                 using var connection = new SqliteConnection(_connectionString);
                 connection.Open();
+                System.Diagnostics.Debug.WriteLine("Database connection opened successfully");
 
                 // Create offline daily attendance table (matches server daily_attendance table)
                 var createDailyAttendanceTable = @"
@@ -86,17 +92,25 @@ namespace ScannerMaui.Services
                         error_message TEXT
                     )";
 
+                System.Diagnostics.Debug.WriteLine("Creating offline_daily_attendance table...");
                 var command1 = new SqliteCommand(createDailyAttendanceTable, connection);
                 command1.ExecuteNonQuery();
+                System.Diagnostics.Debug.WriteLine("offline_daily_attendance table created successfully");
 
+                System.Diagnostics.Debug.WriteLine("Creating offline_attendance table...");
                 var command2 = new SqliteCommand(createAttendanceTable, connection);
                 command2.ExecuteNonQuery();
+                System.Diagnostics.Debug.WriteLine("offline_attendance table created successfully");
 
+                System.Diagnostics.Debug.WriteLine("Creating offline_users table...");
                 var command3 = new SqliteCommand(createUsersTable, connection);
                 command3.ExecuteNonQuery();
+                System.Diagnostics.Debug.WriteLine("offline_users table created successfully");
 
+                System.Diagnostics.Debug.WriteLine("Creating sync_log table...");
                 var command4 = new SqliteCommand(createSyncLogTable, connection);
                 command4.ExecuteNonQuery();
+                System.Diagnostics.Debug.WriteLine("sync_log table created successfully");
 
                 System.Diagnostics.Debug.WriteLine("Offline database initialized successfully");
             }
@@ -236,13 +250,18 @@ namespace ScannerMaui.Services
                         var insertCommand = new SqliteCommand(
                             "INSERT INTO offline_daily_attendance (attendance_id, student_id, date, time_in, time_out, status, device_id) VALUES (@attendanceId, @studentId, @date, @timeIn, @timeOut, @status, @deviceId)",
                             connection);
-                        insertCommand.Parameters.AddWithValue("@attendanceId", Guid.NewGuid().ToString());
+                        var attendanceId = Guid.NewGuid().ToString();
+                        var deviceIdValue = deviceId ?? GetDeviceId();
+                        
+                        System.Diagnostics.Debug.WriteLine($"Insert parameters: attendanceId={attendanceId}, studentId={studentId}, date={today}, timeIn={(attendanceType == "TimeIn" ? timeValue : "NULL")}, timeOut={(attendanceType == "TimeOut" ? timeValue : "NULL")}, status=Present, deviceId={deviceIdValue}");
+                        
+                        insertCommand.Parameters.AddWithValue("@attendanceId", attendanceId);
                         insertCommand.Parameters.AddWithValue("@studentId", studentId);
                         insertCommand.Parameters.AddWithValue("@date", today);
-                        insertCommand.Parameters.AddWithValue("@timeIn", attendanceType == "TimeIn" ? timeValue : null);
-                        insertCommand.Parameters.AddWithValue("@timeOut", attendanceType == "TimeOut" ? timeValue : null);
+                        insertCommand.Parameters.AddWithValue("@timeIn", attendanceType == "TimeIn" ? timeValue : (object)DBNull.Value);
+                        insertCommand.Parameters.AddWithValue("@timeOut", attendanceType == "TimeOut" ? timeValue : (object)DBNull.Value);
                         insertCommand.Parameters.AddWithValue("@status", "Present");
-                        insertCommand.Parameters.AddWithValue("@deviceId", deviceId ?? GetDeviceId());
+                        insertCommand.Parameters.AddWithValue("@deviceId", deviceIdValue);
                         
                         var result = await insertCommand.ExecuteNonQueryAsync();
                         System.Diagnostics.Debug.WriteLine($"Offline daily attendance saved successfully. Rows affected: {result}");
@@ -433,8 +452,27 @@ namespace ScannerMaui.Services
         {
             try
             {
+                System.Diagnostics.Debug.WriteLine("Getting unsynced count from SQLite...");
+                System.Diagnostics.Debug.WriteLine($"Database path: {_databasePath}");
+                System.Diagnostics.Debug.WriteLine($"Database exists: {File.Exists(_databasePath)}");
+                
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
+                System.Diagnostics.Debug.WriteLine("Database connection opened successfully");
+
+                // First, let's check if tables exist
+                var tableCheckCommand = new SqliteCommand(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('offline_daily_attendance', 'offline_attendance')",
+                    connection);
+                
+                var tables = new List<string>();
+                using var reader = await tableCheckCommand.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    tables.Add(reader.GetString(0));
+                }
+                
+                System.Diagnostics.Debug.WriteLine($"Found tables: {string.Join(", ", tables)}");
 
                 // Count unique students from both tables
                 var command = new SqliteCommand(
@@ -446,11 +484,14 @@ namespace ScannerMaui.Services
                     connection);
 
                 var result = await command.ExecuteScalarAsync();
-                return Convert.ToInt32(result);
+                var count = Convert.ToInt32(result);
+                System.Diagnostics.Debug.WriteLine($"Unsynced count result: {count}");
+                return count;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error getting unsynced count: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                 return 0;
             }
         }
@@ -1415,6 +1456,76 @@ namespace ScannerMaui.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error creating test database file: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                return false;
+            }
+        }
+
+        public async Task<bool> MarkAsSyncedAsync(int recordId)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = new SqliteCommand(
+                    "UPDATE offline_daily_attendance SET is_synced = 1 WHERE attendance_id = @id",
+                    connection);
+                command.Parameters.AddWithValue("@id", recordId.ToString());
+
+                var result = await command.ExecuteNonQueryAsync();
+                return result > 0;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error marking record as synced: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> TestDatabaseConnectionAsync()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("=== Testing Database Connection ===");
+                System.Diagnostics.Debug.WriteLine($"Database path: {_databasePath}");
+                System.Diagnostics.Debug.WriteLine($"Database exists: {File.Exists(_databasePath)}");
+                
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+                System.Diagnostics.Debug.WriteLine("Database connection opened successfully");
+                
+                // Test if tables exist
+                var tableCheckCommand = new SqliteCommand(
+                    "SELECT name FROM sqlite_master WHERE type='table'",
+                    connection);
+                
+                var tables = new List<string>();
+                using var reader = await tableCheckCommand.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    tables.Add(reader.GetString(0));
+                }
+                
+                System.Diagnostics.Debug.WriteLine($"Found tables: {string.Join(", ", tables)}");
+                
+                // Test simple insert
+                var testCommand = new SqliteCommand(
+                    "INSERT INTO offline_daily_attendance (attendance_id, student_id, date, status) VALUES (@id, @studentId, @date, @status)",
+                    connection);
+                testCommand.Parameters.AddWithValue("@id", "TEST-" + Guid.NewGuid().ToString());
+                testCommand.Parameters.AddWithValue("@studentId", "TEST-STUDENT");
+                testCommand.Parameters.AddWithValue("@date", DateTime.Today.ToString("yyyy-MM-dd"));
+                testCommand.Parameters.AddWithValue("@status", "Present");
+                
+                var result = await testCommand.ExecuteNonQueryAsync();
+                System.Diagnostics.Debug.WriteLine($"Test insert result: {result}");
+                
+                return result > 0;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error testing database connection: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                 return false;
             }
