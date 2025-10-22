@@ -34,15 +34,16 @@ namespace ServerAtrrak.Services
                     };
                 }
 
-                // Parse QR code data
+                // Parse QR code data - it could be JSON, pipe-separated, or just a Student ID
                 StudentQRData? studentData = null;
                 try
                 {
+                    // First try JSON format
                     studentData = JsonSerializer.Deserialize<StudentQRData>(qrCodeData);
                 }
                 catch
                 {
-                    // Try to parse as pipe-separated format
+                    // If JSON parsing fails, try pipe-separated format
                     var parts = qrCodeData.Split('|');
                     if (parts.Length >= 5)
                     {
@@ -53,6 +54,19 @@ namespace ServerAtrrak.Services
                             GradeLevel = int.TryParse(parts[2], out int grade) ? grade : 0,
                             Section = parts[3],
                             SchoolId = parts[4]
+                        };
+                    }
+                    else if (parts.Length == 1)
+                    {
+                        // If it's just a single value, treat it as a Student ID
+                        // This is the most common case for your QR codes
+                        studentData = new StudentQRData
+                        {
+                            StudentId = qrCodeData.Trim(),
+                            FullName = "Unknown", // Will be fetched from database
+                            GradeLevel = 0,
+                            Section = "Unknown",
+                            SchoolId = teacher.SchoolId // Use teacher's school as default
                         };
                     }
                 }
@@ -68,7 +82,7 @@ namespace ServerAtrrak.Services
                 }
 
                 // Validate student exists and get full info
-                var studentInfo = await GetStudentInfoAsync(studentData.StudentId);
+                var studentInfo = await GetQRStudentInfoAsync(studentData.StudentId);
                 if (studentInfo == null)
                 {
                     return new ServerQRValidationResult
@@ -125,7 +139,7 @@ namespace ServerAtrrak.Services
                     IsValid = true,
                     Message = $"Valid student: {studentInfo.FullName} (Grade {studentInfo.GradeLevel}, Section {studentInfo.Section})",
                     StudentData = studentData,
-                    StudentInfo = studentInfo
+                    QRStudentInfo = studentInfo
                 };
             }
             catch (Exception ex)
@@ -149,9 +163,9 @@ namespace ServerAtrrak.Services
 
                 var query = @"
                     SELECT t.TeacherId, t.FullName, t.Email, s.SchoolName, s.SchoolId, 
-                           t.Gradelvl, t.Section, t.Strand
+                           COALESCE(t.Gradelvl, 0) as Gradelvl, COALESCE(t.Section, '') as Section, t.Strand
                     FROM teacher t
-                    INNER JOIN school s ON t.SchoolId = s.SchoolId
+                    LEFT JOIN school s ON t.SchoolId = s.SchoolId
                     WHERE t.TeacherId = @TeacherId";
 
                 using var command = new MySqlCommand(query, connection);
@@ -165,8 +179,8 @@ namespace ServerAtrrak.Services
                         TeacherId = reader.GetString(0),
                         FullName = reader.GetString(1),
                         Email = reader.GetString(2),
-                        SchoolName = reader.GetString(3),
-                        SchoolId = reader.GetString(4),
+                        SchoolName = reader.IsDBNull(3) ? "Unknown School" : reader.GetString(3),
+                        SchoolId = reader.IsDBNull(4) ? "" : reader.GetString(4),
                         GradeLevel = reader.GetInt32(5),
                         Section = reader.GetString(6),
                         Strand = reader.IsDBNull(7) ? null : reader.GetString(7)
@@ -181,7 +195,7 @@ namespace ServerAtrrak.Services
             }
         }
 
-        private async Task<StudentInfo?> GetStudentInfoAsync(string studentId)
+        private async Task<QRStudentInfo?> GetQRStudentInfoAsync(string studentId)
         {
             try
             {
@@ -199,7 +213,7 @@ namespace ServerAtrrak.Services
                 using var reader = await command.ExecuteReaderAsync();
                 if (await reader.ReadAsync())
                 {
-                    return new StudentInfo
+                    return new QRStudentInfo
                     {
                         StudentId = reader.GetString(0),
                         FullName = reader.GetString(1),
@@ -225,7 +239,7 @@ namespace ServerAtrrak.Services
         public string Message { get; set; } = string.Empty;
         public ServerQRValidationErrorType ErrorType { get; set; } = ServerQRValidationErrorType.None;
         public StudentQRData? StudentData { get; set; }
-        public StudentInfo? StudentInfo { get; set; }
+        public QRStudentInfo? QRStudentInfo { get; set; }
     }
 
     public enum ServerQRValidationErrorType
@@ -250,7 +264,7 @@ namespace ServerAtrrak.Services
         public string? Strand { get; set; }
     }
 
-    public class StudentInfo
+    public class QRStudentInfo
     {
         public string StudentId { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;

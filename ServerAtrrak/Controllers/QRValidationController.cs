@@ -66,14 +66,13 @@ namespace ServerAtrrak.Controllers
         }
 
         [HttpGet("teacher/{teacherId}")]
-        public async Task<ActionResult<TeacherInfo>> GetTeacherInfo(string teacherId)
+        public ActionResult<TeacherInfo> GetTeacherInfo(string teacherId)
         {
             try
             {
                 _logger.LogInformation("Getting teacher info for {TeacherId}", teacherId);
 
-                // This would need to be implemented in QRValidationService
-                // For now, return a placeholder
+                // Return a placeholder for now
                 return Ok(new TeacherInfo
                 {
                     TeacherId = teacherId,

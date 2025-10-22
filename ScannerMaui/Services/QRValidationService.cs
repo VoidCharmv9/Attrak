@@ -28,15 +28,16 @@ namespace ScannerMaui.Services
                     };
                 }
 
-                // Parse QR code data (assuming it contains student information)
+                // Parse QR code data - it could be JSON, pipe-separated, or just a Student ID
                 StudentQRData? studentData = null;
                 try
                 {
+                    // First try JSON format
                     studentData = JsonSerializer.Deserialize<StudentQRData>(qrCodeData);
                 }
                 catch
                 {
-                    // If JSON parsing fails, try to extract basic info from QR code
+                    // If JSON parsing fails, try pipe-separated format
                     // QR code format: "StudentId|FullName|GradeLevel|Section|SchoolId"
                     var parts = qrCodeData.Split('|');
                     if (parts.Length >= 5)
@@ -48,6 +49,19 @@ namespace ScannerMaui.Services
                             GradeLevel = int.TryParse(parts[2], out int grade) ? grade : 0,
                             Section = parts[3],
                             SchoolId = parts[4]
+                        };
+                    }
+                    else if (parts.Length == 1)
+                    {
+                        // If it's just a single value, treat it as a Student ID
+                        // This is the most common case for your QR codes
+                        studentData = new StudentQRData
+                        {
+                            StudentId = qrCodeData.Trim(),
+                            FullName = "Unknown", // Will be fetched from server
+                            GradeLevel = 0,
+                            Section = "Unknown",
+                            SchoolId = teacher.SchoolId // Use teacher's school as default
                         };
                     }
                 }
