@@ -81,8 +81,8 @@ namespace ServerAtrrak.Controllers
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
 
-                // Check if already marked for today
-                var checkQuery = "SELECT AttendanceId, TimeIn FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date";
+                // Check if already marked for today - get ALL records for this student/date
+                var checkQuery = "SELECT AttendanceId, TimeIn, TimeOut FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date ORDER BY CreatedAt DESC";
                 using var checkCommand = new MySqlCommand(checkQuery, connection);
                 checkCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
                 checkCommand.Parameters.AddWithValue("@Date", request.Date.Date);
@@ -90,13 +90,35 @@ namespace ServerAtrrak.Controllers
                 using var reader = await checkCommand.ExecuteReaderAsync();
                 var existingId = "";
                 var existingTimeIn = "";
+                var existingTimeOut = "";
+                var hasMultipleRecords = false;
                 
                 if (await reader.ReadAsync())
                 {
                     existingId = reader.GetString("AttendanceId");
                     existingTimeIn = reader.IsDBNull("TimeIn") ? "" : reader.GetString("TimeIn");
+                    existingTimeOut = reader.IsDBNull("TimeOut") ? "" : reader.GetString("TimeOut");
+                    
+                    // Check if there are multiple records (duplicates)
+                    if (await reader.ReadAsync())
+                    {
+                        hasMultipleRecords = true;
+                        _logger.LogWarning("Found duplicate records for student {StudentId} on {Date}. Will consolidate.", request.StudentId, request.Date.Date);
+                    }
                 }
                 reader.Close();
+                
+                // If there are duplicates, delete all but the first one
+                if (hasMultipleRecords)
+                {
+                    var deleteQuery = "DELETE FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date AND AttendanceId != @KeepId";
+                    using var deleteCommand = new MySqlCommand(deleteQuery, connection);
+                    deleteCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
+                    deleteCommand.Parameters.AddWithValue("@Date", request.Date.Date);
+                    deleteCommand.Parameters.AddWithValue("@KeepId", existingId);
+                    await deleteCommand.ExecuteNonQueryAsync();
+                    _logger.LogInformation("Removed duplicate records for student {StudentId}", request.StudentId);
+                }
 
                 // Determine status based on time
                 var timeInDateTime = request.Date.Date.Add(request.TimeIn);
@@ -181,8 +203,8 @@ namespace ServerAtrrak.Controllers
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
 
-                // Check if Time In exists for today
-                var checkQuery = "SELECT TimeIn, Status FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date";
+                // Check if Time In exists for today - get the LATEST record to avoid duplicates
+                var checkQuery = "SELECT AttendanceId, TimeIn, Status, TimeOut FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date ORDER BY CreatedAt DESC LIMIT 1";
                 using var checkCommand = new MySqlCommand(checkQuery, connection);
                 checkCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
                 checkCommand.Parameters.AddWithValue("@Date", request.Date.Date);
@@ -197,18 +219,14 @@ namespace ServerAtrrak.Controllers
                     });
                 }
 
+                var attendanceId = reader.GetString("AttendanceId");
                 var timeIn = reader.GetString("TimeIn");
                 var currentStatus = reader.GetString("Status");
+                var existingTimeOut = reader.IsDBNull("TimeOut") ? "" : reader.GetString("TimeOut");
                 reader.Close();
 
-                // Check if Time Out already exists
-                var timeoutCheckQuery = "SELECT TimeOut FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date AND TimeOut IS NOT NULL";
-                using var timeoutCheckCommand = new MySqlCommand(timeoutCheckQuery, connection);
-                timeoutCheckCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
-                timeoutCheckCommand.Parameters.AddWithValue("@Date", request.Date.Date);
-
-                var existingTimeOut = await timeoutCheckCommand.ExecuteScalarAsync();
-                if (existingTimeOut != null)
+                // Check if Time Out already exists for this specific record
+                if (!string.IsNullOrEmpty(existingTimeOut))
                 {
                     return BadRequest(new DailyTimeOutResponse
                     {
@@ -238,20 +256,19 @@ namespace ServerAtrrak.Controllers
                     remarks = isLate ? "Late - Half Day" : "Half Day";
                 }
 
-                // Update the record with Time Out
+                // Update the record with Time Out using specific AttendanceId
                 var updateQuery = @"
                     UPDATE daily_attendance 
                     SET TimeOut = @TimeOut, 
                         Remarks = @Remarks,
                         UpdatedAt = @UpdatedAt
-                    WHERE StudentId = @StudentId AND Date = @Date";
+                    WHERE AttendanceId = @AttendanceId";
 
                 using var updateCommand = new MySqlCommand(updateQuery, connection);
                 updateCommand.Parameters.AddWithValue("@TimeOut", request.TimeOut.ToString(@"hh\:mm"));
                 updateCommand.Parameters.AddWithValue("@Remarks", remarks);
                 updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
-                updateCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
-                updateCommand.Parameters.AddWithValue("@Date", request.Date.Date);
+                updateCommand.Parameters.AddWithValue("@AttendanceId", attendanceId);
 
                 await updateCommand.ExecuteNonQueryAsync();
 
