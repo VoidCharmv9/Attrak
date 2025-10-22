@@ -154,7 +154,7 @@ namespace ServerAtrrak.Services
             }
         }
 
-        private async Task<TeacherInfo?> GetTeacherInfoAsync(string teacherId)
+        public async Task<TeacherInfo?> GetTeacherInfoAsync(string teacherId)
         {
             try
             {

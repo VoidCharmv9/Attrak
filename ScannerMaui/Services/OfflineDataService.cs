@@ -321,86 +321,43 @@ namespace ScannerMaui.Services
                     var timeValue = DateTime.Now.ToString("HH:mm");
                     var deviceIdValue = deviceId ?? GetDeviceId();
                     
-                    // Check if record already exists for this student on this date
-                    var checkQuery = "SELECT attendance_id, time_in, time_out FROM offline_daily_attendance WHERE student_id = @studentId AND date = @date";
+                    // Check if this attendance type already exists for this student today
+                    var checkQuery = "SELECT COUNT(*) FROM offline_daily_attendance WHERE student_id = @studentId AND date = @date AND attendance_type = @attendanceType";
                     using var checkCommand = new SqliteCommand(checkQuery, connection);
                     checkCommand.Parameters.AddWithValue("@studentId", studentId);
                     checkCommand.Parameters.AddWithValue("@date", today);
+                    checkCommand.Parameters.AddWithValue("@attendanceType", attendanceType);
                     
-                    using var reader = await checkCommand.ExecuteReaderAsync();
-                    bool recordExists = await reader.ReadAsync();
+                    var existingCount = Convert.ToInt32(await checkCommand.ExecuteScalarAsync());
                     
-                    if (recordExists)
+                    if (existingCount > 0)
                     {
-                        // Record exists - UPDATE it
-                        var existingAttendanceId = reader.GetString("attendance_id");
-                        var existingTimeIn = reader.IsDBNull("time_in") ? null : reader.GetString("time_in");
-                        var existingTimeOut = reader.IsDBNull("time_out") ? null : reader.GetString("time_out");
-                        reader.Close();
-                        
-                        System.Diagnostics.Debug.WriteLine($"Record exists for student {studentId} on {today}. Updating existing record {existingAttendanceId}");
-                        System.Diagnostics.Debug.WriteLine($"Existing TimeIn: {existingTimeIn}, Existing TimeOut: {existingTimeOut}");
-                        System.Diagnostics.Debug.WriteLine($"New {attendanceType}: {timeValue}");
-                        
-                        // Check for conflicts
-                        if (attendanceType == "TimeIn" && !string.IsNullOrEmpty(existingTimeIn))
-                        {
-                            System.Diagnostics.Debug.WriteLine($"TimeIn already exists for student {studentId} on {today}. Skipping duplicate TimeIn.");
-                            return true; // Don't create duplicate TimeIn
-                        }
-                        
-                        if (attendanceType == "TimeOut" && !string.IsNullOrEmpty(existingTimeOut))
-                        {
-                            System.Diagnostics.Debug.WriteLine($"TimeOut already exists for student {studentId} on {today}. Skipping duplicate TimeOut.");
-                            return true; // Don't create duplicate TimeOut
-                        }
-                        
-                        // Update the existing record
-                        var updateQuery = @"
-                            UPDATE offline_daily_attendance 
-                            SET time_in = @timeIn, 
-                                time_out = @timeOut,
-                                attendance_type = @attendanceType,
-                                device_id = @deviceId,
-                                is_synced = 0
-                            WHERE attendance_id = @attendanceId";
-                        
-                        using var updateCommand = new SqliteCommand(updateQuery, connection);
-                        updateCommand.Parameters.AddWithValue("@timeIn", attendanceType == "TimeIn" ? timeValue : (existingTimeIn ?? (object)DBNull.Value));
-                        updateCommand.Parameters.AddWithValue("@timeOut", attendanceType == "TimeOut" ? timeValue : (existingTimeOut ?? (object)DBNull.Value));
-                        updateCommand.Parameters.AddWithValue("@attendanceType", attendanceType);
-                        updateCommand.Parameters.AddWithValue("@deviceId", deviceIdValue);
-                        updateCommand.Parameters.AddWithValue("@attendanceId", existingAttendanceId);
-                        
-                        var updateResult = await updateCommand.ExecuteNonQueryAsync();
-                        System.Diagnostics.Debug.WriteLine($"Updated existing record. Rows affected: {updateResult}");
+                        System.Diagnostics.Debug.WriteLine($"{attendanceType} already exists for student {studentId} on {today}. Skipping duplicate {attendanceType}.");
+                        return true; // Don't create duplicate
                     }
-                    else
-                    {
-                        reader.Close();
-                        
-                        // No record exists - INSERT new record
-                        var attendanceId = Guid.NewGuid().ToString();
-                        
-                        System.Diagnostics.Debug.WriteLine($"No existing record for student {studentId} on {today}. Creating new record {attendanceId}");
-                        
-                        var insertCommand = new SqliteCommand(
-                            "INSERT INTO offline_daily_attendance (attendance_id, student_id, date, time_in, time_out, status, device_id, is_synced, attendance_type) VALUES (@attendanceId, @studentId, @date, @timeIn, @timeOut, @status, @deviceId, @isSynced, @attendanceType)",
-                            connection);
-                        
-                        insertCommand.Parameters.AddWithValue("@attendanceId", attendanceId);
-                        insertCommand.Parameters.AddWithValue("@studentId", studentId);
-                        insertCommand.Parameters.AddWithValue("@date", today);
-                        insertCommand.Parameters.AddWithValue("@timeIn", attendanceType == "TimeIn" ? timeValue : (object)DBNull.Value);
-                        insertCommand.Parameters.AddWithValue("@timeOut", attendanceType == "TimeOut" ? timeValue : (object)DBNull.Value);
-                        insertCommand.Parameters.AddWithValue("@status", "Present");
-                        insertCommand.Parameters.AddWithValue("@deviceId", deviceIdValue);
-                        insertCommand.Parameters.AddWithValue("@isSynced", 0);
-                        insertCommand.Parameters.AddWithValue("@attendanceType", attendanceType);
-                        
-                        var insertResult = await insertCommand.ExecuteNonQueryAsync();
-                        System.Diagnostics.Debug.WriteLine($"Created new record. Rows affected: {insertResult}");
-                    }
+                    
+                    // Create a new record for this TimeIn/TimeOut scan
+                    // This ensures both TimeIn and TimeOut appear separately in pending list
+                    var attendanceId = Guid.NewGuid().ToString();
+                    
+                    System.Diagnostics.Debug.WriteLine($"Creating new {attendanceType} record for student {studentId} on {today}. Record ID: {attendanceId}");
+                    
+                    var insertCommand = new SqliteCommand(
+                        "INSERT INTO offline_daily_attendance (attendance_id, student_id, date, time_in, time_out, status, device_id, is_synced, attendance_type) VALUES (@attendanceId, @studentId, @date, @timeIn, @timeOut, @status, @deviceId, @isSynced, @attendanceType)",
+                        connection);
+                    
+                    insertCommand.Parameters.AddWithValue("@attendanceId", attendanceId);
+                    insertCommand.Parameters.AddWithValue("@studentId", studentId);
+                    insertCommand.Parameters.AddWithValue("@date", today);
+                    insertCommand.Parameters.AddWithValue("@timeIn", attendanceType == "TimeIn" ? timeValue : (object)DBNull.Value);
+                    insertCommand.Parameters.AddWithValue("@timeOut", attendanceType == "TimeOut" ? timeValue : (object)DBNull.Value);
+                    insertCommand.Parameters.AddWithValue("@status", "Present");
+                    insertCommand.Parameters.AddWithValue("@deviceId", deviceIdValue);
+                    insertCommand.Parameters.AddWithValue("@isSynced", 0);
+                    insertCommand.Parameters.AddWithValue("@attendanceType", attendanceType);
+                    
+                    var insertResult = await insertCommand.ExecuteNonQueryAsync();
+                    System.Diagnostics.Debug.WriteLine($"Created new {attendanceType} record. Rows affected: {insertResult}");
                 }
                 else
                 {
@@ -564,7 +521,6 @@ namespace ScannerMaui.Services
                     @"SELECT attendance_id, student_id, date, time_in, time_out, status, device_id, is_synced, created_at, attendance_type 
                       FROM offline_daily_attendance 
                       WHERE is_synced = 0 
-                      AND device_id IS NOT NULL
                       ORDER BY created_at",
                     connection);
 
@@ -573,7 +529,6 @@ namespace ScannerMaui.Services
                 var debugCommand = new SqliteCommand(
                     @"SELECT attendance_id, student_id, date, time_in, time_out, device_id, is_synced 
                       FROM offline_daily_attendance 
-                      WHERE device_id IS NOT NULL
                       ORDER BY created_at",
                     connection);
                 
@@ -604,7 +559,8 @@ namespace ScannerMaui.Services
                     var createdAt = dailyReader.GetDateTime("created_at");
                     var attendanceType = dailyReader.IsDBNull("attendance_type") ? "Unknown" : dailyReader.GetString("attendance_type");
                     
-                    // Use the stored attendance_type and corresponding time
+                    // Create one record per attendance type (TimeIn or TimeOut)
+                    // Since we now create separate records for each scan, we only need one record per row
                     DateTime scanTime;
                     if (attendanceType == "TimeIn" && !dailyReader.IsDBNull("time_in"))
                     {
@@ -624,12 +580,12 @@ namespace ScannerMaui.Services
                     
                     records.Add(new OfflineAttendanceRecord
                     {
-                        Id = attendanceId.GetHashCode(), // Use the actual attendance_id
+                        Id = attendanceId.GetHashCode(),
                         StudentId = studentId,
-                        AttendanceType = attendanceType,
                         ScanTime = scanTime,
-                        DeviceId = deviceId,
+                        AttendanceType = attendanceType,
                         IsSynced = isSynced,
+                        DeviceId = deviceId,
                         CreatedAt = createdAt
                     });
                 }
@@ -741,7 +697,7 @@ namespace ScannerMaui.Services
                 var dailyCountCommand = new SqliteCommand(
                     @"SELECT COUNT(*) 
                       FROM offline_daily_attendance 
-                      WHERE is_synced = 0 AND device_id IS NOT NULL",
+                      WHERE is_synced = 0",
                     connection);
                 var dailyCount = Convert.ToInt32(await dailyCountCommand.ExecuteScalarAsync());
                 System.Diagnostics.Debug.WriteLine($"Individual daily attendance count: {dailyCount}");
@@ -750,7 +706,7 @@ namespace ScannerMaui.Services
                 var otherCountCommand = new SqliteCommand(
                     @"SELECT COUNT(*) 
                       FROM offline_attendance 
-                      WHERE is_synced = 0 AND device_id IS NOT NULL",
+                      WHERE is_synced = 0",
                     connection);
                 var otherCount = Convert.ToInt32(await otherCountCommand.ExecuteScalarAsync());
                 System.Diagnostics.Debug.WriteLine($"Other unsynced attendance count: {otherCount}");

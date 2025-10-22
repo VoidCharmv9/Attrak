@@ -66,23 +66,20 @@ namespace ServerAtrrak.Controllers
         }
 
         [HttpGet("teacher/{teacherId}")]
-        public ActionResult<TeacherInfo> GetTeacherInfo(string teacherId)
+        public async Task<ActionResult<TeacherInfo>> GetTeacherInfo(string teacherId)
         {
             try
             {
                 _logger.LogInformation("Getting teacher info for {TeacherId}", teacherId);
 
-                // Return a placeholder for now
-                return Ok(new TeacherInfo
+                // Get actual teacher information from database
+                var teacher = await _qrValidationService.GetTeacherInfoAsync(teacherId);
+                if (teacher == null)
                 {
-                    TeacherId = teacherId,
-                    FullName = "Sample Teacher",
-                    Email = "teacher@school.com",
-                    SchoolName = "Sample School",
-                    SchoolId = "SCH001",
-                    GradeLevel = 10,
-                    Section = "MEWOA"
-                });
+                    return NotFound($"Teacher with ID {teacherId} not found");
+                }
+
+                return Ok(teacher);
             }
             catch (Exception ex)
             {
