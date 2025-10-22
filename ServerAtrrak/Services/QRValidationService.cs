@@ -34,6 +34,14 @@ namespace ServerAtrrak.Services
                     };
                 }
 
+                // Debug: Log teacher information
+                _logger.LogInformation("TEACHER INFO DEBUG:");
+                _logger.LogInformation("Teacher ID: {TeacherId}", teacher.TeacherId);
+                _logger.LogInformation("Teacher Name: {TeacherName}", teacher.FullName);
+                _logger.LogInformation("Teacher School ID: {TeacherSchoolId}", teacher.SchoolId);
+                _logger.LogInformation("Teacher Grade Level: {TeacherGradeLevel}", teacher.GradeLevel);
+                _logger.LogInformation("Teacher Section: '{TeacherSection}'", teacher.Section);
+
                 // Parse QR code data - it could be JSON, pipe-separated, or just a Student ID
                 StudentQRData? studentData = null;
                 try
@@ -94,6 +102,14 @@ namespace ServerAtrrak.Services
                     };
                 }
 
+                // Debug: Log student information
+                _logger.LogInformation("STUDENT INFO DEBUG:");
+                _logger.LogInformation("Student ID: {StudentId}", studentInfo.StudentId);
+                _logger.LogInformation("Student Name: {StudentName}", studentInfo.FullName);
+                _logger.LogInformation("Student School ID: {StudentSchoolId}", studentInfo.SchoolId);
+                _logger.LogInformation("Student Grade Level: {StudentGradeLevel}", studentInfo.GradeLevel);
+                _logger.LogInformation("Student Section: '{StudentSection}'", studentInfo.Section);
+
                 // Validate school match
                 if (teacher.SchoolId != studentInfo.SchoolId)
                 {
@@ -119,11 +135,22 @@ namespace ServerAtrrak.Services
                     };
                 }
 
+                // Debug: Log section information
+                _logger.LogInformation("SECTION VALIDATION DEBUG:");
+                _logger.LogInformation("Teacher Section: '{TeacherSection}' (Length: {TeacherSectionLength})", 
+                    teacher.Section, teacher.Section?.Length ?? 0);
+                _logger.LogInformation("Student Section: '{StudentSection}' (Length: {StudentSectionLength})", 
+                    studentInfo.Section, studentInfo.Section?.Length ?? 0);
+                _logger.LogInformation("Teacher Section IsNullOrEmpty: {TeacherSectionEmpty}", string.IsNullOrEmpty(teacher.Section));
+                _logger.LogInformation("Student Section IsNullOrEmpty: {StudentSectionEmpty}", string.IsNullOrEmpty(studentInfo.Section));
+
                 // Validate section match
                 if (!string.IsNullOrEmpty(teacher.Section) && 
                     !string.IsNullOrEmpty(studentInfo.Section) && 
                     teacher.Section != studentInfo.Section)
                 {
+                    _logger.LogWarning("SECTION MISMATCH: Teacher='{TeacherSection}', Student='{StudentSection}'", 
+                        teacher.Section, studentInfo.Section);
                     return new ServerQRValidationResult
                     {
                         IsValid = false,
@@ -131,6 +158,11 @@ namespace ServerAtrrak.Services
                         ErrorType = ServerQRValidationErrorType.SectionMismatch,
                         StudentData = studentData
                     };
+                }
+                else
+                {
+                    _logger.LogInformation("SECTION VALIDATION PASSED: Teacher='{TeacherSection}', Student='{StudentSection}'", 
+                        teacher.Section, studentInfo.Section);
                 }
 
                 // All validations passed
