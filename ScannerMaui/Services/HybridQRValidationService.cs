@@ -223,8 +223,7 @@ namespace ScannerMaui.Services
                 System.Diagnostics.Debug.WriteLine($"Server Base URL: {_serverBaseUrl}");
                 
                 var currentTime = DateTime.Now;
-                System.Diagnostics.Debug.WriteLine($"Current local time: {currentTime:yyyy-MM-dd HH:mm:ss}");
-                System.Diagnostics.Debug.WriteLine($"Current local date: {currentTime.Date:yyyy-MM-dd}");
+                System.Diagnostics.Debug.WriteLine($"Current time: {currentTime}");
                 
                 HttpResponseMessage response;
                 
@@ -237,7 +236,7 @@ namespace ScannerMaui.Services
                         TimeIn = currentTime.TimeOfDay
                     };
                     
-                    System.Diagnostics.Debug.WriteLine($"Sending Time In request to server");
+                    System.Diagnostics.Debug.WriteLine($"Sending request - Date: {request.Date}");
                     var timeInUrl = _serverBaseUrl.EndsWith("/") ? $"{_serverBaseUrl}api/dailyattendance/daily-timein" : $"{_serverBaseUrl}/api/dailyattendance/daily-timein";
                     System.Diagnostics.Debug.WriteLine($"Full URL: {timeInUrl}");
                     response = await _httpClient.PostAsJsonAsync(timeInUrl, request);

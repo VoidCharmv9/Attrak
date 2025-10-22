@@ -81,14 +81,14 @@ namespace ServerAtrrak.Controllers
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
 
-                _logger.LogInformation("Daily Time In request - StudentId: {StudentId}, Date: {Date}, TimeIn: {TimeIn}", 
-                    request.StudentId, request.Date, request.TimeIn);
+                _logger.LogInformation("Request - StudentId: {StudentId}, Date: {Date}", 
+                    request.StudentId, request.Date);
 
                 // Check if there's already a record for this student on the SAME date
                 var checkQuery = "SELECT AttendanceId, TimeIn, TimeOut, Date FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date ORDER BY CreatedAt DESC";
                 using var checkCommand = new MySqlCommand(checkQuery, connection);
                 checkCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
-                checkCommand.Parameters.AddWithValue("@Date", request.Date.Date);
+                checkCommand.Parameters.AddWithValue("@Date", DateTime.Now.Date);
 
                 using var reader = await checkCommand.ExecuteReaderAsync();
                 var existingId = "";
@@ -117,14 +117,14 @@ namespace ServerAtrrak.Controllers
                     var deleteQuery = "DELETE FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date AND AttendanceId != @KeepId";
                     using var deleteCommand = new MySqlCommand(deleteQuery, connection);
                     deleteCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
-                    deleteCommand.Parameters.AddWithValue("@Date", request.Date.Date);
+                    deleteCommand.Parameters.AddWithValue("@Date", DateTime.Now.Date);
                     deleteCommand.Parameters.AddWithValue("@KeepId", existingId);
                     await deleteCommand.ExecuteNonQueryAsync();
                 }
 
                 // Determine status based on time
-                var timeInDateTime = request.Date.Date.Add(request.TimeIn);
-                var schoolStartTime = request.Date.Date.AddHours(7).AddMinutes(30); // 7:30 AM
+                var timeInDateTime = DateTime.Now.Date.Add(request.TimeIn);
+                var schoolStartTime = DateTime.Now.Date.AddHours(7).AddMinutes(30); // 7:30 AM
                 var isLate = timeInDateTime > schoolStartTime;
                 var status = isLate ? "Late" : "Present";
 
@@ -172,7 +172,7 @@ namespace ServerAtrrak.Controllers
                     using var insertCommand = new MySqlCommand(insertQuery, connection);
                     insertCommand.Parameters.AddWithValue("@AttendanceId", Guid.NewGuid().ToString());
                     insertCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
-                    insertCommand.Parameters.AddWithValue("@Date", request.Date.Date);
+                    insertCommand.Parameters.AddWithValue("@Date", DateTime.Now.Date);
                     insertCommand.Parameters.AddWithValue("@TimeIn", request.TimeIn.ToString(@"hh\:mm\:ss"));
                     insertCommand.Parameters.AddWithValue("@Status", status);
                     insertCommand.Parameters.AddWithValue("@Remarks", isLate ? "Late arrival" : "");
@@ -229,7 +229,7 @@ namespace ServerAtrrak.Controllers
                 
                 using var checkCommand = new MySqlCommand(checkQuery, connection);
                 checkCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
-                checkCommand.Parameters.AddWithValue("@Date", request.Date.Date);
+                checkCommand.Parameters.AddWithValue("@Date", DateTime.Now.Date);
 
                 using var reader = await checkCommand.ExecuteReaderAsync();
                 if (!await reader.ReadAsync())
