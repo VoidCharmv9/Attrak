@@ -85,6 +85,9 @@ namespace ScannerMaui.Pages
                                         {
                                             if (validationResult.IsValid)
                                             {
+                                                // Play success sound
+                                                PlaySuccessSound();
+                                                
                                                 // Show success message
                                                 resultLabel.Text = $"✓ {validationResult.Message}";
                                                 resultLabel.TextColor = Colors.Green;
@@ -261,6 +264,19 @@ namespace ScannerMaui.Pages
         private async void OnDoneClicked(object? sender, EventArgs e)
         {
             await Navigation.PopAsync();
+        }
+
+        private void PlaySuccessSound()
+        {
+            try
+            {
+                // Play system beep sound
+                System.Media.SystemSounds.Beep.Play();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error playing success sound: {ex.Message}");
+            }
         }
 
         private bool IsScanningAllowed()

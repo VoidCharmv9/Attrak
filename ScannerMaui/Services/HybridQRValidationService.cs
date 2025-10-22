@@ -207,10 +207,11 @@ namespace ScannerMaui.Services
                     // Also save to offline storage as backup
                     await _offlineDataService.SaveOfflineAttendanceAsync(studentData.StudentId, attendanceType, teacher.TeacherId);
                     
+                    var displayType = attendanceType == "TimeIn" ? "Time In" : "Time Out";
                     return new QRValidationResult
                     {
                         IsValid = true,
-                        Message = $"✓ {attendanceType} saved successfully to server",
+                        Message = $"✓ {displayType} saved successfully to server",
                         StudentData = studentData
                     };
                 }
@@ -227,10 +228,11 @@ namespace ScannerMaui.Services
                     
                     if (offlineSuccess)
                     {
+                        var displayType = attendanceType == "TimeIn" ? "Time In" : "Time Out";
                         return new QRValidationResult
                         {
                             IsValid = true,
-                            Message = $"✓ {attendanceType} saved offline (server error: {response.StatusCode})",
+                            Message = $"✓ {displayType} saved offline (server error: {response.StatusCode})",
                             StudentData = studentData
                         };
                     }
@@ -299,10 +301,11 @@ namespace ScannerMaui.Services
                 
                 if (success)
                 {
+                    var displayType = attendanceType == "TimeIn" ? "Time In" : "Time Out";
                     return new QRValidationResult
                     {
                         IsValid = true,
-                        Message = $"Student {studentData.StudentId} saved offline (will sync when online)",
+                        Message = $"✓ {displayType} saved offline (will sync when online)",
                         StudentData = studentData
                     };
                 }

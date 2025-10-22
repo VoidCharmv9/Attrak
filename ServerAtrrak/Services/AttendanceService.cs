@@ -528,17 +528,28 @@ namespace ServerAtrrak.Services
 
                 if (existingId != null)
                 {
-                    // Update existing record
-                    var updateQuery = @"
-                        UPDATE daily_attendance 
-                        SET @TimeField = @TimeValue, 
-                            Status = @Status,
-                            Remarks = @Remarks,
-                            UpdatedAt = @UpdatedAt
-                        WHERE AttendanceId = @AttendanceId";
-
-                    var timeField = request.AttendanceType == "TimeIn" ? "TimeIn" : "TimeOut";
-                    updateQuery = updateQuery.Replace("@TimeField", timeField);
+                    // Update existing record - FIX: Use proper column names
+                    string updateQuery;
+                    if (request.AttendanceType == "TimeIn")
+                    {
+                        updateQuery = @"
+                            UPDATE daily_attendance 
+                            SET TimeIn = @TimeValue, 
+                                Status = @Status,
+                                Remarks = @Remarks,
+                                UpdatedAt = @UpdatedAt
+                            WHERE AttendanceId = @AttendanceId";
+                    }
+                    else
+                    {
+                        updateQuery = @"
+                            UPDATE daily_attendance 
+                            SET TimeOut = @TimeValue, 
+                                Status = @Status,
+                                Remarks = @Remarks,
+                                UpdatedAt = @UpdatedAt
+                            WHERE AttendanceId = @AttendanceId";
+                    }
 
                     using var updateCommand = new MySqlCommand(updateQuery, connection);
                     updateCommand.Parameters.AddWithValue("@TimeValue", request.Timestamp.TimeOfDay);
