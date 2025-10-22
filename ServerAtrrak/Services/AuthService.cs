@@ -165,7 +165,7 @@ namespace ServerAtrrak.Services
 
             var query = "UPDATE user SET LastLoginAt = @LastLoginAt WHERE UserId = @UserId";
             using var command = new MySqlCommand(query, connection);
-            command.Parameters.AddWithValue("@LastLoginAt", DateTime.UtcNow);
+            command.Parameters.AddWithValue("@LastLoginAt", DateTime.Now);
             command.Parameters.AddWithValue("@UserId", userId);
 
             await command.ExecuteNonQueryAsync();

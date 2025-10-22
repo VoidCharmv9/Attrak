@@ -555,7 +555,7 @@ namespace ServerAtrrak.Services
                     updateCommand.Parameters.AddWithValue("@TimeValue", request.Timestamp.TimeOfDay);
                     updateCommand.Parameters.AddWithValue("@Status", status);
                     updateCommand.Parameters.AddWithValue("@Remarks", string.IsNullOrEmpty(remarks) ? (object)DBNull.Value : remarks);
-                    updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
+                    updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.Now);
                     updateCommand.Parameters.AddWithValue("@AttendanceId", existingId);
 
                     await updateCommand.ExecuteNonQueryAsync();
@@ -575,8 +575,8 @@ namespace ServerAtrrak.Services
                     insertCommand.Parameters.AddWithValue("@TimeOut", request.AttendanceType == "TimeOut" ? request.Timestamp.TimeOfDay : (object)DBNull.Value);
                     insertCommand.Parameters.AddWithValue("@Status", status);
                     insertCommand.Parameters.AddWithValue("@Remarks", string.IsNullOrEmpty(remarks) ? (object)DBNull.Value : remarks);
-                    insertCommand.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
-                    insertCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
+                    insertCommand.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
+                    insertCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.Now);
 
                     await insertCommand.ExecuteNonQueryAsync();
                 }

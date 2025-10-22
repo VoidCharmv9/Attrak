@@ -430,8 +430,8 @@ namespace ServerAtrrak.Controllers
             command.Parameters.AddWithValue("@Password", request.Password);
             command.Parameters.AddWithValue("@UserType", "Teacher");
             command.Parameters.AddWithValue("@IsActive", true);
-            command.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
-            command.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
+            command.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
+            command.Parameters.AddWithValue("@UpdatedAt", DateTime.Now);
             command.Parameters.AddWithValue("@TeacherId", teacherId);
 
             await command.ExecuteNonQueryAsync();
@@ -493,8 +493,8 @@ namespace ServerAtrrak.Controllers
             command.Parameters.AddWithValue("@Password", request.Password);
             command.Parameters.AddWithValue("@UserType", UserType.Student.ToString());
             command.Parameters.AddWithValue("@IsActive", true);
-            command.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
-            command.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
+            command.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
+            command.Parameters.AddWithValue("@UpdatedAt", DateTime.Now);
             command.Parameters.AddWithValue("@StudentId", studentId);
 
             await command.ExecuteNonQueryAsync();
