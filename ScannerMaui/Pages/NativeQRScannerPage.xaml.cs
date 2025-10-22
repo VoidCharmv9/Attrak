@@ -1,5 +1,7 @@
 using ZXing.Net.Maui;
 using ZXing.Net.Maui.Controls;
+using AttrackSharedClass.Models;
+using ScannerMaui.Services;
 
 namespace ScannerMaui.Pages
 {
@@ -9,26 +11,43 @@ namespace ScannerMaui.Pages
         private CameraLocation _currentCameraLocation = CameraLocation.Rear;
         private bool _isTorchOn = false;
         private string _currentAttendanceType = string.Empty;
+        private string _currentTeacherId = string.Empty;
+        private string _currentSchoolId = string.Empty;
+        private HashSet<string> _scannedToday = new HashSet<string>();
+        private bool _isProcessingScan = false;
+        private readonly IAttendanceService _attendanceService;
 
         public event EventHandler<string>? QRCodeScanned;
         public event EventHandler<string>? AttendanceTypeSelected;
+        public event EventHandler<AttendanceResponse>? AttendanceMarked;
 
-        public NativeQRScannerPage()
+        public NativeQRScannerPage(IAttendanceService attendanceService)
         {
             InitializeComponent();
+            _attendanceService = attendanceService;
             System.Diagnostics.Debug.WriteLine("NativeQRScannerPage created successfully");
         }
 
-        private void OnBarcodesDetected(object? sender, BarcodeDetectionEventArgs e)
+        private async void OnBarcodesDetected(object? sender, BarcodeDetectionEventArgs e)
         {
             try
             {
-                if (e.Results?.Any() == true)
+                if (e.Results?.Any() == true && !_isProcessingScan)
                 {
                     var result = e.Results.FirstOrDefault();
                     if (result != null && !string.IsNullOrEmpty(result.Value))
                     {
                         System.Diagnostics.Debug.WriteLine($"QR Code detected: {result.Value}");
+                        
+                        // Prevent multiple simultaneous scans
+                        _isProcessingScan = true;
+                        
+                        // Show processing indicator
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            processingIndicator.IsVisible = true;
+                            processingIndicator.IsRunning = true;
+                        });
                         
                         // Check if scanning is allowed at current time
                         if (!IsScanningAllowed())
@@ -46,66 +65,72 @@ namespace ScannerMaui.Pages
                             });
                             
                             // Clear the error message after 3 seconds
-                            Task.Delay(3000).ContinueWith(_ => 
+                            await Task.Delay(3000);
+                            MainThread.BeginInvokeOnMainThread(() =>
                             {
-                                MainThread.BeginInvokeOnMainThread(() =>
-                                {
-                                    resultLabel.IsVisible = false;
-                                    resultLabel.Text = "";
-                                    statusLabel.Text = "Ready to scan next QR code";
-                                    statusLabel.TextColor = Colors.Green;
-                                });
+                                resultLabel.IsVisible = false;
+                                resultLabel.Text = "";
+                                statusLabel.Text = "Ready to scan next QR code";
+                                statusLabel.TextColor = Colors.Green;
+                                processingIndicator.IsVisible = false;
+                                processingIndicator.IsRunning = false;
+                                _isProcessingScan = false;
                             });
                             
                             return; // Don't process the QR code
                         }
                         
-                        // Use MainThread to ensure UI updates are on the correct thread
-                        MainThread.BeginInvokeOnMainThread(() =>
+                        // Check for duplicate scan
+                        var scanKey = $"{result.Value}_{_currentAttendanceType}_{DateTime.Today:yyyy-MM-dd}";
+                        if (_scannedToday.Contains(scanKey))
                         {
-                            try
+                            MainThread.BeginInvokeOnMainThread(() =>
                             {
-                                // Show the scanned result
-                                resultLabel.Text = $"Scanned: {result.Value}";
+                                resultLabel.Text = "Already scanned today!";
+                                resultLabel.TextColor = Colors.Orange;
                                 resultLabel.IsVisible = true;
                                 
-                                // Update status
-                                statusLabel.Text = "QR Code detected!";
-                                statusLabel.TextColor = Colors.Green;
-                                
-                                // Notify parent page about the scanned code
-                                QRCodeScanned?.Invoke(this, result.Value);
-                                
-                                // Show success feedback briefly
-                                resultLabel.Text = $"✓ Success: {result.Value}";
-                                resultLabel.TextColor = Colors.Green;
-                                
-                                // Clear the result after 2 seconds
-                                Task.Delay(2000).ContinueWith(_ => 
-                                {
-                                    MainThread.BeginInvokeOnMainThread(() =>
-                                    {
-                                        resultLabel.IsVisible = false;
-                                        resultLabel.Text = "";
-                                        statusLabel.Text = "Ready to scan next QR code";
-                                        statusLabel.TextColor = Colors.Green;
-                                    });
-                                });
-                            }
-                            catch (Exception ex)
+                                statusLabel.Text = "This QR code was already scanned for this attendance type today";
+                                statusLabel.TextColor = Colors.Orange;
+                            });
+                            
+                            // Clear the message after 3 seconds
+                            await Task.Delay(3000);
+                            MainThread.BeginInvokeOnMainThread(() =>
                             {
-                                System.Diagnostics.Debug.WriteLine($"Error updating UI: {ex.Message}");
-                            }
-                        });
+                                resultLabel.IsVisible = false;
+                                resultLabel.Text = "";
+                                statusLabel.Text = "Ready to scan next QR code";
+                                statusLabel.TextColor = Colors.Green;
+                                processingIndicator.IsVisible = false;
+                                processingIndicator.IsRunning = false;
+                                _isProcessingScan = false;
+                            });
+                            
+                            return;
+                        }
                         
-                        // Continue scanning for continuous mode
-                        // Don't stop scanning - let it continue automatically
+                        // Process the QR code
+                        await ProcessQRCodeAsync(result.Value);
+                        
+                        // Mark as scanned to prevent duplicates
+                        _scannedToday.Add(scanKey);
+                        
+                        // Reset processing flag after a delay
+                        await Task.Delay(2000);
+                        MainThread.BeginInvokeOnMainThread(() =>
+                        {
+                            processingIndicator.IsVisible = false;
+                            processingIndicator.IsRunning = false;
+                        });
+                        _isProcessingScan = false;
                     }
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error in OnBarcodesDetected: {ex.Message}");
+                _isProcessingScan = false;
             }
         }
 
@@ -144,6 +169,182 @@ namespace ScannerMaui.Pages
             statusLabel.TextColor = Colors.Green;
         }
 
+        public void SetTeacherInfo(string teacherId, string schoolId)
+        {
+            _currentTeacherId = teacherId;
+            _currentSchoolId = schoolId;
+        }
+
+        private async Task ProcessQRCodeAsync(string qrCode)
+        {
+            try
+            {
+                // Parse QR code to extract student information
+                var student = ParseQRCode(qrCode);
+                if (student == null)
+                {
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        resultLabel.Text = "Invalid QR Code Format";
+                        resultLabel.TextColor = Colors.Red;
+                        resultLabel.IsVisible = true;
+                        
+                        statusLabel.Text = "QR code format is invalid";
+                        statusLabel.TextColor = Colors.Red;
+                    });
+                    return;
+                }
+
+                // Validate student enrollment (school, section, grade level matching)
+                if (!await ValidateStudentEnrollmentAsync(student))
+                {
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        resultLabel.Text = "Student Not Enrolled";
+                        resultLabel.TextColor = Colors.Red;
+                        resultLabel.IsVisible = true;
+                        
+                        statusLabel.Text = "Student is not enrolled in this teacher's class";
+                        statusLabel.TextColor = Colors.Red;
+                    });
+                    return;
+                }
+
+                // Create attendance request
+                var attendanceRequest = new AttendanceRequest
+                {
+                    StudentId = student.StudentId,
+                    TeacherId = _currentTeacherId,
+                    SchoolId = _currentSchoolId,
+                    Section = student.Section,
+                    AttendanceType = _currentAttendanceType,
+                    Timestamp = DateTime.Now
+                };
+
+                // Mark attendance (this would typically call an API)
+                var attendanceResponse = await MarkAttendanceAsync(attendanceRequest);
+
+                // Update UI based on response
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (attendanceResponse.Success)
+                    {
+                        resultLabel.Text = $"✓ {attendanceResponse.Message}";
+                        resultLabel.TextColor = Colors.Green;
+                        resultLabel.IsVisible = true;
+                        
+                        statusLabel.Text = $"Student: {attendanceResponse.StudentName}";
+                        statusLabel.TextColor = Colors.Green;
+                        
+                        // Notify parent page
+                        AttendanceMarked?.Invoke(this, attendanceResponse);
+                    }
+                    else
+                    {
+                        resultLabel.Text = $"✗ {attendanceResponse.Message}";
+                        resultLabel.TextColor = Colors.Red;
+                        resultLabel.IsVisible = true;
+                        
+                        statusLabel.Text = "Attendance marking failed";
+                        statusLabel.TextColor = Colors.Red;
+                    }
+                });
+
+                // Clear the result after 3 seconds
+                await Task.Delay(3000);
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    resultLabel.IsVisible = false;
+                    resultLabel.Text = "";
+                    statusLabel.Text = "Ready to scan next QR code";
+                    statusLabel.TextColor = Colors.Green;
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error processing QR code: {ex.Message}");
+                
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    resultLabel.Text = "Processing Error";
+                    resultLabel.TextColor = Colors.Red;
+                    resultLabel.IsVisible = true;
+                    
+                    statusLabel.Text = "Error processing QR code";
+                    statusLabel.TextColor = Colors.Red;
+                });
+            }
+        }
+
+        private Student? ParseQRCode(string qrCode)
+        {
+            try
+            {
+                // QR code format: StudentId|SchoolId|GradeLevel|Section|FullName
+                var parts = qrCode.Split('|');
+                
+                if (parts.Length >= 4)
+                {
+                    return new Student
+                    {
+                        StudentId = parts[0],
+                        SchoolId = parts[1],
+                        GradeLevel = int.Parse(parts[2]),
+                        Section = parts[3],
+                        FullName = parts.Length > 4 ? parts[4] : "Unknown Student"
+                    };
+                }
+                
+                return null;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error parsing QR code: {ex.Message}");
+                return null;
+            }
+        }
+
+        private async Task<bool> ValidateStudentEnrollmentAsync(Student student)
+        {
+            try
+            {
+                // Check if student's school matches teacher's school
+                if (student.SchoolId != _currentSchoolId)
+                {
+                    System.Diagnostics.Debug.WriteLine($"School mismatch: Student school {student.SchoolId} vs Teacher school {_currentSchoolId}");
+                    return false;
+                }
+
+                // Additional validation can be added here (e.g., check if student is in teacher's class)
+                // For now, we'll return true if school matches
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error validating student enrollment: {ex.Message}");
+                return false;
+            }
+        }
+
+        private async Task<AttendanceResponse> MarkAttendanceAsync(AttendanceRequest request)
+        {
+            try
+            {
+                // Call the actual API service
+                return await _attendanceService.MarkAttendanceAsync(request);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error marking attendance: {ex.Message}");
+                
+                return new AttendanceResponse
+                {
+                    Success = false,
+                    Message = "Failed to mark attendance"
+                };
+            }
+        }
+
         private void UpdateModeDisplay()
         {
             if (!string.IsNullOrEmpty(_currentAttendanceType))
@@ -164,7 +365,32 @@ namespace ScannerMaui.Pages
 
         private async void OnDoneClicked(object? sender, EventArgs e)
         {
-            await Navigation.PopAsync();
+            try
+            {
+                // Stop scanning
+                _isScanning = false;
+                cameraView.IsDetecting = false;
+                
+                // Show completion message
+                statusLabel.Text = "Scanning completed";
+                statusLabel.TextColor = Colors.Green;
+                
+                // Disable the done button to prevent multiple clicks
+                doneButton.IsEnabled = false;
+                doneButton.Text = "✓ Completed";
+                doneButton.BackgroundColor = Colors.Gray;
+                
+                // Wait a moment before navigating back
+                await Task.Delay(1000);
+                
+                // Navigate back to previous page
+                await Navigation.PopAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in OnDoneClicked: {ex.Message}");
+                await Navigation.PopAsync();
+            }
         }
 
         private bool IsScanningAllowed()

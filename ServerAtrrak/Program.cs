@@ -40,6 +40,10 @@ namespace ServerAtrrak
                     .AllowCredentials();
                 });
             });
+
+            // Add health checks
+            builder.Services.AddHealthChecks();
+            
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
@@ -53,6 +57,8 @@ namespace ServerAtrrak
             app.UseCors("AllowAll");
             app.UseAuthorization();
 
+            // Add health check endpoint
+            app.MapHealthChecks("/api/health");
 
             app.MapControllers();
 

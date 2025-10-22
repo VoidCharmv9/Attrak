@@ -35,6 +35,7 @@ namespace ScannerMaui
             builder.Services.AddSingleton<ScannerMaui.Services.ConnectionService>();
             builder.Services.AddSingleton<ScannerMaui.Services.AuthService>();
             builder.Services.AddSingleton<ScannerMaui.Services.QRScannerService>();
+            builder.Services.AddScoped<ScannerMaui.Services.IAttendanceService, ScannerMaui.Services.AttendanceService>();
 
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();

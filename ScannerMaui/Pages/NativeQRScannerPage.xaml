@@ -67,7 +67,8 @@
                    Text="Camera ready - point at QR code" 
                    TextColor="Green"
                    FontSize="14"
-                   HorizontalOptions="Center" />
+                   HorizontalOptions="Center"
+                   Margin="0,5" />
             
             <!-- Scanned Result -->
             <Label x:Name="resultLabel" 
@@ -76,7 +77,16 @@
                    FontSize="16"
                    FontAttributes="Bold"
                    HorizontalOptions="Center"
-                   IsVisible="False" />
+                   IsVisible="False"
+                   Margin="0,5" />
+            
+            <!-- Processing Indicator -->
+            <ActivityIndicator x:Name="processingIndicator"
+                               IsVisible="False"
+                               IsRunning="False"
+                               Color="Blue"
+                               HorizontalOptions="Center"
+                               Margin="0,5" />
             
             <!-- Camera Controls -->
             <Grid ColumnDefinitions="*,*" ColumnSpacing="10">

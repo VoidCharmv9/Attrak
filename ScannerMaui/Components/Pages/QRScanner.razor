@@ -30,9 +30,9 @@
                     @if (offlineRecordCount > 0)
                     {
                         <div class="d-flex align-items-center gap-2">
-                            <span class="badge bg-warning text-dark">
-                                📱 @offlineRecordCount offline
-                            </span>
+                        <span class="badge bg-warning text-dark">
+                            📱 @offlineRecordCount offline
+                        </span>
                             <button class="btn btn-sm btn-success" @onclick="ShowPendingModal" title="View Pending Students">
                                 <i class="fas fa-sync"></i>
                             </button>
@@ -127,9 +127,9 @@
                                 
                                 <!-- Action Buttons -->
                                 <div class="d-flex gap-2 justify-content-center">
-                                    <button class="btn btn-secondary btn-lg px-4 py-2" @onclick="GoBack">
-                                        <i class="fas fa-arrow-left me-2"></i>Back
-                                    </button>
+                                <button class="btn btn-secondary btn-lg px-4 py-2" @onclick="GoBack">
+                                    <i class="fas fa-arrow-left me-2"></i>Back
+                                </button>
                                     <button class="btn btn-info btn-lg px-4 py-2" @onclick="ShowDatabaseInfo">
                                         <i class="fas fa-database me-2"></i>Database Info
                                     </button>
@@ -693,7 +693,7 @@
                     return currentTime >= afternoonStart;
                 }
             }
-            return true;
+        return true;
         }
         
         return false; // Outside school hours
@@ -1064,9 +1064,9 @@
                         StudentId = studentId,
                         StudentName = studentName,
                         Timestamp = DateTime.Now,
-                        IsValid = true,
+                            IsValid = true,
                         Status = result.Status,
-                        AttendanceType = "TimeIn",
+                            AttendanceType = "TimeIn",
                         Message = result.Message
                     };
                     
@@ -1137,17 +1137,44 @@
                 var errorContent = await response.Content.ReadAsStringAsync();
                 System.Diagnostics.Debug.WriteLine($"API Error Response: {errorContent}");
                 
+                // Try to parse the error response to get the actual message
+                string errorMessage = $"API Error: {response.StatusCode}";
+                try
+                {
+                    var errorResponse = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(errorContent);
+                    if (errorResponse != null && errorResponse.ContainsKey("message"))
+                    {
+                        errorMessage = errorResponse["message"].ToString() ?? errorMessage;
+                        
+                        // Handle specific error cases
+                        if (errorMessage.Contains("already marked"))
+                        {
+                            errorMessage = "Attendance already marked for today";
+                        }
+                        else if (errorMessage.Contains("Invalid request"))
+                        {
+                            errorMessage = "Invalid student data";
+                        }
+                    }
+                }
+                catch
+                {
+                    // If parsing fails, use the raw content
+                    errorMessage = errorContent.Length > 100 ? errorContent.Substring(0, 100) + "..." : errorContent;
+                }
+                
+                var studentName = await GetStudentNameAsync(studentId);
                 lastScanResult = new AttendanceRecord
                 {
                     StudentId = studentId,
-                    StudentName = "Unknown",
+                    StudentName = studentName,
                     Timestamp = DateTime.Now,
                     IsValid = false,
                     Status = "Error",
-                    AttendanceType = "Unknown",
-                    Message = $"API Error: {response.StatusCode} - {errorContent}"
+                    AttendanceType = attendanceType,
+                    Message = errorMessage
                 };
-                message = $"API Error: {response.StatusCode}";
+                message = errorMessage;
                 isSuccess = false;
             }
         }
@@ -1365,17 +1392,34 @@
                 var errorContent = await response.Content.ReadAsStringAsync();
                 System.Diagnostics.Debug.WriteLine($"API Error Response: {errorContent}");
                 
+                // Try to parse the error response to get the actual message
+                string errorMessage = $"API Error: {response.StatusCode}";
+                try
+                {
+                    var errorResponse = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(errorContent);
+                    if (errorResponse != null && errorResponse.ContainsKey("message"))
+                    {
+                        errorMessage = errorResponse["message"].ToString() ?? errorMessage;
+                    }
+                }
+                catch
+                {
+                    // If parsing fails, use the raw content
+                    errorMessage = errorContent.Length > 100 ? errorContent.Substring(0, 100) + "..." : errorContent;
+                }
+                
+                var studentName = await GetStudentNameAsync(studentId);
                 lastScanResult = new AttendanceRecord
             {
                 StudentId = studentId,
-                    StudentName = "Unknown",
+                    StudentName = studentName,
                     Timestamp = DateTime.Now,
                 IsValid = false,
                     Status = "Error",
-                    AttendanceType = "Unknown",
-                    Message = $"API Error: {response.StatusCode} - {errorContent}"
+                    AttendanceType = attendanceType,
+                    Message = errorMessage
             };
-                message = $"API Error: {response.StatusCode}";
+                message = errorMessage;
             isSuccess = false;
         }
         }
@@ -1515,25 +1559,44 @@
             var apiBaseUrl = "https://attrak.onrender.com/";
             var teacherId = currentTeacher?.TeacherId ?? "unknown";
             
-            var success = await OfflineDataService.SyncIndividualStudentAsync(studentId, apiBaseUrl, teacherId);
+            var result = await OfflineDataService.SyncIndividualStudentAsync(studentId, apiBaseUrl, teacherId);
             
-            if (success)
+            if (result.Success)
             {
                 // Remove from pending list
                 pendingStudents.RemoveAll(p => p.StudentId == studentId);
                 await LoadOfflineRecordCount(); // Refresh count
+                message = $"✅ {result.Message}";
+                isSuccess = true;
                 System.Diagnostics.Debug.WriteLine($"Successfully synced student {studentId}");
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to sync student {studentId}");
+                // Check if this was an invalid student
+                if (result.InvalidStudents?.Contains(studentId) == true)
+                {
+                    // Remove from pending list since it was invalid
+                    pendingStudents.RemoveAll(p => p.StudentId == studentId);
+                    await LoadOfflineRecordCount(); // Refresh count
+                    message = $"⚠️ {result.Message}";
+                    isSuccess = false;
+                }
+                else
+                {
+                    message = $"❌ {result.Message}";
+                    isSuccess = false;
+                }
+                System.Diagnostics.Debug.WriteLine($"Failed to sync student {studentId}: {result.Message}");
             }
             
             StateHasChanged();
         }
         catch (Exception ex)
         {
+            message = $"❌ Error syncing student: {ex.Message}";
+            isSuccess = false;
             System.Diagnostics.Debug.WriteLine($"Error syncing individual student: {ex.Message}");
+            StateHasChanged();
         }
     }
 
@@ -1550,26 +1613,82 @@
             // Get current teacher ID
             var teacherId = currentTeacher?.TeacherId ?? "unknown";
             
-            var syncSuccess = await OfflineDataService.AutoSyncOfflineDataAsync(apiBaseUrl, teacherId);
+            var result = await OfflineDataService.AutoSyncOfflineDataAsync(apiBaseUrl, teacherId);
             
-            if (syncSuccess)
+            if (result.Success)
             {
                 await LoadOfflineRecordCount(); // Refresh count
+                message = $"✅ {result.Message}";
+                isSuccess = true;
                 System.Diagnostics.Debug.WriteLine("Manual sync completed successfully");
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine("Manual sync completed with some failures");
+                await LoadOfflineRecordCount(); // Refresh count
+                message = $"⚠️ {result.Message}";
+                isSuccess = false;
+                System.Diagnostics.Debug.WriteLine($"Manual sync completed with issues: {result.Message}");
+            }
+            
+            // Show detailed feedback if there were invalid students
+            if (result.InvalidStudents?.Any() == true)
+            {
+                var invalidStudentNames = new List<string>();
+                foreach (var invalidStudentId in result.InvalidStudents)
+                {
+                    var studentName = await GetStudentNameAsync(invalidStudentId);
+                    invalidStudentNames.Add($"{studentName} ({invalidStudentId})");
+                }
+                
+                var invalidStudentsMessage = $"Removed invalid students: {string.Join(", ", invalidStudentNames)}";
+                message += $"\n\n{invalidStudentsMessage}";
             }
         }
         catch (Exception ex)
         {
+            message = $"❌ Error in sync: {ex.Message}";
+            isSuccess = false;
             System.Diagnostics.Debug.WriteLine($"Error in manual sync: {ex.Message}");
         }
         finally
         {
             isAutoSyncing = false;
             StateHasChanged();
+        }
+    }
+
+    private async Task TriggerAutoSyncSilent()
+    {
+        try
+        {
+            // Get API base URL from configuration
+            var apiBaseUrl = "https://attrak.onrender.com/"; // Your actual API URL
+            
+            // Get current teacher ID
+            var teacherId = currentTeacher?.TeacherId ?? "unknown";
+            
+            var result = await OfflineDataService.AutoSyncOfflineDataAsync(apiBaseUrl, teacherId);
+            
+            await LoadOfflineRecordCount(); // Refresh count
+            
+            if (result.Success)
+            {
+                System.Diagnostics.Debug.WriteLine("Silent auto-sync completed successfully");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"Silent auto-sync completed with issues: {result.Message}");
+            }
+            
+            // Log invalid students but don't show UI feedback
+            if (result.InvalidStudents?.Any() == true)
+            {
+                System.Diagnostics.Debug.WriteLine($"Removed {result.InvalidStudents.Count} invalid students during silent sync");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error in silent auto-sync: {ex.Message}");
         }
     }
 
@@ -1599,7 +1718,7 @@
         if (ConnectionService.IsOnline)
         {
             System.Diagnostics.Debug.WriteLine("Connection available, attempting auto-sync...");
-            await TriggerAutoSync();
+            await TriggerAutoSyncSilent();
         }
     }
 
@@ -1612,7 +1731,8 @@
         if (isOnline && offlineRecordCount > 0)
         {
             System.Diagnostics.Debug.WriteLine("Connection restored with pending offline records, attempting auto-sync...");
-            await TriggerAutoSync();
+            // Don't show UI feedback for automatic sync on connection restore
+            await TriggerAutoSyncSilent();
         }
     }
 

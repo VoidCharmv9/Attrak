@@ -30,16 +30,36 @@ namespace ScannerMaui.Services
                 using var connection = new SqliteConnection(_connectionString);
                 connection.Open();
 
-                // Create offline attendance table
-                var createAttendanceTable = @"
-                    CREATE TABLE IF NOT EXISTS offline_attendance (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                // Create offline daily attendance table (matches server daily_attendance table)
+                var createDailyAttendanceTable = @"
+                    CREATE TABLE IF NOT EXISTS offline_daily_attendance (
+                        attendance_id TEXT PRIMARY KEY,
                         student_id TEXT NOT NULL,
-                        attendance_type TEXT NOT NULL,
-                        scan_time DATETIME NOT NULL,
+                        date TEXT NOT NULL,
+                        time_in TEXT,
+                        time_out TEXT,
+                        status TEXT NOT NULL DEFAULT 'Present',
+                        remarks TEXT,
                         device_id TEXT,
                         is_synced INTEGER DEFAULT 0,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )";
+
+                // Create offline attendance table (matches server attendance table)
+                var createAttendanceTable = @"
+                    CREATE TABLE IF NOT EXISTS offline_attendance (
+                        attendance_id TEXT PRIMARY KEY,
+                        student_id TEXT NOT NULL,
+                        subject_id TEXT,
+                        teacher_id TEXT,
+                        timestamp DATETIME NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'Present',
+                        attendance_type TEXT NOT NULL,
+                        device_id TEXT,
+                        is_synced INTEGER DEFAULT 0,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                     )";
 
                 // Create offline users table for authentication
@@ -66,14 +86,17 @@ namespace ScannerMaui.Services
                         error_message TEXT
                     )";
 
-                var command1 = new SqliteCommand(createAttendanceTable, connection);
+                var command1 = new SqliteCommand(createDailyAttendanceTable, connection);
                 command1.ExecuteNonQuery();
 
-                var command2 = new SqliteCommand(createUsersTable, connection);
+                var command2 = new SqliteCommand(createAttendanceTable, connection);
                 command2.ExecuteNonQuery();
 
-                var command3 = new SqliteCommand(createSyncLogTable, connection);
+                var command3 = new SqliteCommand(createUsersTable, connection);
                 command3.ExecuteNonQuery();
+
+                var command4 = new SqliteCommand(createSyncLogTable, connection);
+                command4.ExecuteNonQuery();
 
                 System.Diagnostics.Debug.WriteLine("Offline database initialized successfully");
             }
@@ -179,23 +202,112 @@ namespace ScannerMaui.Services
                 await connection.OpenAsync();
                 System.Diagnostics.Debug.WriteLine("Database connection opened successfully");
 
-                var command = new SqliteCommand(
-                    "INSERT INTO offline_attendance (student_id, attendance_type, scan_time, device_id) VALUES (@studentId, @attendanceType, @scanTime, @deviceId)",
-                    connection);
-                command.Parameters.AddWithValue("@studentId", studentId);
-                command.Parameters.AddWithValue("@attendanceType", attendanceType);
-                command.Parameters.AddWithValue("@scanTime", DateTime.Now);
-                command.Parameters.AddWithValue("@deviceId", deviceId ?? GetDeviceId());
+                // Use daily attendance table for TimeIn/TimeOut
+                if (attendanceType == "TimeIn" || attendanceType == "TimeOut")
+                {
+                    var today = DateTime.Today.ToString("yyyy-MM-dd");
+                    var timeValue = DateTime.Now.ToString("HH:mm");
+                    
+                    // Check if record already exists for today
+                    var checkCommand = new SqliteCommand(
+                        "SELECT attendance_id FROM offline_daily_attendance WHERE student_id = @studentId AND date = @date",
+                        connection);
+                    checkCommand.Parameters.AddWithValue("@studentId", studentId);
+                    checkCommand.Parameters.AddWithValue("@date", today);
+                    
+                    var existingId = await checkCommand.ExecuteScalarAsync();
+                    
+                    if (existingId != null)
+                    {
+                        // Update existing record
+                        var updateCommand = new SqliteCommand(
+                            $"UPDATE offline_daily_attendance SET {attendanceType.ToLower()} = @timeValue, updated_at = @updatedAt WHERE attendance_id = @attendanceId",
+                            connection);
+                        updateCommand.Parameters.AddWithValue("@timeValue", timeValue);
+                        updateCommand.Parameters.AddWithValue("@updatedAt", DateTime.Now);
+                        updateCommand.Parameters.AddWithValue("@attendanceId", existingId);
+                        
+                        var result = await updateCommand.ExecuteNonQueryAsync();
+                        System.Diagnostics.Debug.WriteLine($"Offline daily attendance updated successfully. Rows affected: {result}");
+                    }
+                    else
+                    {
+                        // Insert new record
+                        var insertCommand = new SqliteCommand(
+                            "INSERT INTO offline_daily_attendance (attendance_id, student_id, date, time_in, time_out, status, device_id) VALUES (@attendanceId, @studentId, @date, @timeIn, @timeOut, @status, @deviceId)",
+                            connection);
+                        insertCommand.Parameters.AddWithValue("@attendanceId", Guid.NewGuid().ToString());
+                        insertCommand.Parameters.AddWithValue("@studentId", studentId);
+                        insertCommand.Parameters.AddWithValue("@date", today);
+                        insertCommand.Parameters.AddWithValue("@timeIn", attendanceType == "TimeIn" ? timeValue : null);
+                        insertCommand.Parameters.AddWithValue("@timeOut", attendanceType == "TimeOut" ? timeValue : null);
+                        insertCommand.Parameters.AddWithValue("@status", "Present");
+                        insertCommand.Parameters.AddWithValue("@deviceId", deviceId ?? GetDeviceId());
+                        
+                        var result = await insertCommand.ExecuteNonQueryAsync();
+                        System.Diagnostics.Debug.WriteLine($"Offline daily attendance saved successfully. Rows affected: {result}");
+                    }
+                }
+                else
+                {
+                    // Use regular attendance table for other types
+                    var command = new SqliteCommand(
+                        "INSERT INTO offline_attendance (attendance_id, student_id, timestamp, attendance_type, device_id) VALUES (@attendanceId, @studentId, @timestamp, @attendanceType, @deviceId)",
+                        connection);
+                    command.Parameters.AddWithValue("@attendanceId", Guid.NewGuid().ToString());
+                    command.Parameters.AddWithValue("@studentId", studentId);
+                    command.Parameters.AddWithValue("@timestamp", DateTime.Now);
+                    command.Parameters.AddWithValue("@attendanceType", attendanceType);
+                    command.Parameters.AddWithValue("@deviceId", deviceId ?? GetDeviceId());
 
-                var result = await command.ExecuteNonQueryAsync();
-                System.Diagnostics.Debug.WriteLine($"Offline attendance saved successfully. Rows affected: {result}");
-                return result > 0;
+                    var result = await command.ExecuteNonQueryAsync();
+                    System.Diagnostics.Debug.WriteLine($"Offline attendance saved successfully. Rows affected: {result}");
+                }
+                
+                // Try to cache the student name if not already cached
+                await TryCacheStudentNameAsync(studentId);
+                
+                return true;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error saving offline attendance: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                 return false;
+            }
+        }
+
+        private async Task TryCacheStudentNameAsync(string studentId)
+        {
+            try
+            {
+                // Check if student name is already cached
+                var existingName = await GetStudentNameAsync(studentId);
+                if (!string.IsNullOrEmpty(existingName) && !existingName.StartsWith("Student "))
+                {
+                    return; // Already cached
+                }
+                
+                // Try to get from offline users table
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+                
+                var command = new SqliteCommand(
+                    "SELECT username FROM offline_users WHERE user_id = @studentId",
+                    connection);
+                command.Parameters.AddWithValue("@studentId", studentId);
+                
+                var offlineName = await command.ExecuteScalarAsync();
+                if (offlineName != null)
+                {
+                    // Cache the name
+                    await CacheStudentNameAsync(studentId, offlineName.ToString());
+                    System.Diagnostics.Debug.WriteLine($"Cached student name: {studentId} -> {offlineName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error caching student name: {ex.Message}");
             }
         }
 
@@ -207,22 +319,70 @@ namespace ScannerMaui.Services
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
 
-                var command = new SqliteCommand(
-                    "SELECT * FROM offline_attendance WHERE is_synced = 0 ORDER BY created_at",
+                // Get unsynced daily attendance records
+                var dailyCommand = new SqliteCommand(
+                    @"SELECT attendance_id, student_id, date, time_in, time_out, status, device_id, is_synced, created_at 
+                      FROM offline_daily_attendance 
+                      WHERE is_synced = 0 
+                      ORDER BY created_at",
                     connection);
 
-                using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
+                using var dailyReader = await dailyCommand.ExecuteReaderAsync();
+                while (await dailyReader.ReadAsync())
+                {
+                    var date = DateTime.Parse(dailyReader.GetString("date"));
+                    
+                    // Add TimeIn record if exists
+                    if (!dailyReader.IsDBNull("time_in"))
+                    {
+                        var timeIn = TimeSpan.Parse(dailyReader.GetString("time_in"));
+                        records.Add(new OfflineAttendanceRecord
+                        {
+                            Id = dailyReader.GetString("attendance_id").GetHashCode(), // Convert string to int for compatibility
+                            StudentId = dailyReader.GetString("student_id"),
+                            AttendanceType = "TimeIn",
+                            ScanTime = date.Add(timeIn),
+                            DeviceId = dailyReader.IsDBNull("device_id") ? "" : dailyReader.GetString("device_id"),
+                            IsSynced = dailyReader.GetInt32("is_synced") == 1,
+                            CreatedAt = dailyReader.GetDateTime("created_at")
+                        });
+                    }
+                    
+                    // Add TimeOut record if exists
+                    if (!dailyReader.IsDBNull("time_out"))
+                    {
+                        var timeOut = TimeSpan.Parse(dailyReader.GetString("time_out"));
+                        records.Add(new OfflineAttendanceRecord
+                        {
+                            Id = dailyReader.GetString("attendance_id").GetHashCode() + 1, // Different ID for TimeOut
+                            StudentId = dailyReader.GetString("student_id"),
+                            AttendanceType = "TimeOut",
+                            ScanTime = date.Add(timeOut),
+                            DeviceId = dailyReader.IsDBNull("device_id") ? "" : dailyReader.GetString("device_id"),
+                            IsSynced = dailyReader.GetInt32("is_synced") == 1,
+                            CreatedAt = dailyReader.GetDateTime("created_at")
+                        });
+                    }
+                }
+                dailyReader.Close();
+
+                // Get unsynced regular attendance records
+                var regularCommand = new SqliteCommand(
+                    "SELECT attendance_id, student_id, timestamp, attendance_type, device_id, is_synced, created_at FROM offline_attendance WHERE is_synced = 0 ORDER BY created_at",
+                    connection);
+
+                using var regularReader = await regularCommand.ExecuteReaderAsync();
+                while (await regularReader.ReadAsync())
                 {
                     records.Add(new OfflineAttendanceRecord
                     {
-                        Id = reader.GetInt32("id"),
-                        StudentId = reader.GetString("student_id"),
-                        AttendanceType = reader.GetString("attendance_type"),
-                        ScanTime = reader.GetDateTime("scan_time"),
-                        DeviceId = reader.GetString("device_id"),
-                        IsSynced = reader.GetInt32("is_synced") == 1,
-                        CreatedAt = reader.GetDateTime("created_at")
+                        Id = regularReader.GetString("attendance_id").GetHashCode(),
+                        StudentId = regularReader.GetString("student_id"),
+                        AttendanceType = regularReader.GetString("attendance_type"),
+                        ScanTime = regularReader.GetDateTime("timestamp"),
+                        DeviceId = regularReader.IsDBNull("device_id") ? "" : regularReader.GetString("device_id"),
+                        IsSynced = regularReader.GetInt32("is_synced") == 1,
+                        CreatedAt = regularReader.GetDateTime("created_at")
                     });
                 }
             }
@@ -241,13 +401,26 @@ namespace ScannerMaui.Services
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
 
-                var command = new SqliteCommand(
-                    "UPDATE offline_attendance SET is_synced = 1 WHERE id = @id",
+                // Try to update in daily attendance table first
+                var dailyCommand = new SqliteCommand(
+                    "UPDATE offline_daily_attendance SET is_synced = 1 WHERE attendance_id = @id",
                     connection);
-                command.Parameters.AddWithValue("@id", recordId);
+                dailyCommand.Parameters.AddWithValue("@id", recordId.ToString());
 
-                var result = await command.ExecuteNonQueryAsync();
-                return result > 0;
+                var dailyResult = await dailyCommand.ExecuteNonQueryAsync();
+                if (dailyResult > 0)
+                {
+                    return true;
+                }
+
+                // Try to update in regular attendance table
+                var regularCommand = new SqliteCommand(
+                    "UPDATE offline_attendance SET is_synced = 1 WHERE attendance_id = @id",
+                    connection);
+                regularCommand.Parameters.AddWithValue("@id", recordId.ToString());
+
+                var regularResult = await regularCommand.ExecuteNonQueryAsync();
+                return regularResult > 0;
             }
             catch (Exception ex)
             {
@@ -263,8 +436,13 @@ namespace ScannerMaui.Services
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
 
+                // Count unique students from both tables
                 var command = new SqliteCommand(
-                    "SELECT COUNT(DISTINCT student_id) FROM offline_attendance WHERE is_synced = 0",
+                    @"SELECT COUNT(DISTINCT student_id) FROM (
+                        SELECT student_id FROM offline_daily_attendance WHERE is_synced = 0
+                        UNION
+                        SELECT student_id FROM offline_attendance WHERE is_synced = 0
+                    )",
                     connection);
 
                 var result = await command.ExecuteScalarAsync();
@@ -287,15 +465,47 @@ namespace ScannerMaui.Services
 
                 var command = new SqliteCommand(
                     @"SELECT DISTINCT 
-                        oa.student_id,
-                        oa.attendance_type,
-                        oa.scan_time,
-                        oa.device_id,
-                        COUNT(*) as record_count
-                      FROM offline_attendance oa 
-                      WHERE oa.is_synced = 0 
-                      GROUP BY oa.student_id, oa.attendance_type, DATE(oa.scan_time)
-                      ORDER BY oa.scan_time DESC",
+                        student_id,
+                        attendance_type,
+                        scan_time,
+                        device_id,
+                        record_count
+                      FROM (
+                        SELECT 
+                            student_id,
+                            'TimeIn' as attendance_type,
+                            datetime(date || ' ' || time_in) as scan_time,
+                            device_id,
+                            COUNT(*) as record_count
+                        FROM offline_daily_attendance 
+                        WHERE is_synced = 0 AND time_in IS NOT NULL
+                        GROUP BY student_id, date
+                        
+                        UNION ALL
+                        
+                        SELECT 
+                            student_id,
+                            'TimeOut' as attendance_type,
+                            datetime(date || ' ' || time_out) as scan_time,
+                            device_id,
+                            COUNT(*) as record_count
+                        FROM offline_daily_attendance 
+                        WHERE is_synced = 0 AND time_out IS NOT NULL
+                        GROUP BY student_id, date
+                        
+                        UNION ALL
+                        
+                        SELECT 
+                            student_id,
+                            attendance_type,
+                            timestamp as scan_time,
+                            device_id,
+                            COUNT(*) as record_count
+                        FROM offline_attendance 
+                        WHERE is_synced = 0
+                        GROUP BY student_id, attendance_type, DATE(timestamp)
+                      )
+                      ORDER BY scan_time DESC",
                     connection);
 
                 using var reader = await command.ExecuteReaderAsync();
@@ -307,13 +517,38 @@ namespace ScannerMaui.Services
                     var deviceId = reader.IsDBNull("device_id") ? null : reader.GetString("device_id");
                     var recordCount = reader.GetInt32("record_count");
 
-                    // Try to get student name from offline users table
+                    // Try to get student name from cache
                     var studentName = await GetStudentNameAsync(studentId);
+                    
+                    // If no name found, try to get from offline users table as fallback
+                    if (string.IsNullOrEmpty(studentName) || studentName.StartsWith("Student "))
+                    {
+                        try
+                        {
+                            using var nameConnection = new SqliteConnection(_connectionString);
+                            await nameConnection.OpenAsync();
+                            
+                            var nameCommand = new SqliteCommand(
+                                "SELECT username FROM offline_users WHERE user_id = @studentId",
+                                nameConnection);
+                            nameCommand.Parameters.AddWithValue("@studentId", studentId);
+                            
+                            var offlineName = await nameCommand.ExecuteScalarAsync();
+                            if (offlineName != null)
+                            {
+                                studentName = offlineName.ToString();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Error getting offline name: {ex.Message}");
+                        }
+                    }
 
                     pendingStudents.Add(new PendingStudent
                     {
                         StudentId = studentId,
-                        StudentName = studentName ?? $"Student {studentId}",
+                        StudentName = !string.IsNullOrEmpty(studentName) && !studentName.StartsWith("Student ") ? studentName : $"Student {studentId}",
                         AttendanceType = attendanceType,
                         ScanTime = scanTime,
                         DeviceId = deviceId,
@@ -360,8 +595,40 @@ namespace ScannerMaui.Services
         // Public method to get student name (for UI)
         public async Task<string> GetStudentNameForDisplayAsync(string studentId)
         {
-            var name = await GetStudentNameAsync(studentId);
-            return name ?? $"Student {studentId}";
+            try
+            {
+                // First try to get from student names cache
+                var name = await GetStudentNameAsync(studentId);
+                
+                // If we got a real name (not "Student {ID}"), return it
+                if (!string.IsNullOrEmpty(name) && !name.StartsWith("Student "))
+                {
+                    return name;
+                }
+                
+                // Fallback: try to get from offline users table
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+                
+                var command = new SqliteCommand(
+                    "SELECT username FROM offline_users WHERE user_id = @studentId",
+                    connection);
+                command.Parameters.AddWithValue("@studentId", studentId);
+                
+                var offlineName = await command.ExecuteScalarAsync();
+                if (offlineName != null)
+                {
+                    return offlineName.ToString();
+                }
+                
+                // If still no name found, return the fallback
+                return $"Student {studentId}";
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error getting student name for display: {ex.Message}");
+                return $"Student {studentId}";
+            }
         }
 
         private async Task<string?> FetchStudentNameFromServerAsync(string studentId)
@@ -545,7 +812,7 @@ namespace ScannerMaui.Services
             }
         }
 
-        public async Task<bool> SyncIndividualStudentAsync(string studentId, string apiBaseUrl, string teacherId)
+        public async Task<SyncResult> SyncIndividualStudentAsync(string studentId, string apiBaseUrl, string teacherId)
         {
             try
             {
@@ -554,7 +821,22 @@ namespace ScannerMaui.Services
                 
                 if (!studentSpecificRecords.Any())
                 {
-                    return true; // No records to sync
+                    return new SyncResult { Success = true, Message = "No records to sync" }; // No records to sync
+                }
+
+                // First, validate if student is in teacher's class list
+                var isValidStudent = await ValidateStudentInTeacherClassAsync(studentId, apiBaseUrl, teacherId);
+                if (!isValidStudent)
+                {
+                    // Remove all records for this invalid student
+                    await RemoveInvalidStudentRecordsAsync(studentId);
+                    System.Diagnostics.Debug.WriteLine($"Student {studentId} is not in teacher's class list. Removed from pending records.");
+                    return new SyncResult 
+                    { 
+                        Success = false, 
+                        Message = $"Student {studentId} is not in your class list and has been removed from pending records.",
+                        InvalidStudents = new List<string> { studentId }
+                    };
                 }
 
                 using var httpClient = new HttpClient();
@@ -617,13 +899,19 @@ namespace ScannerMaui.Services
                     failCount > 0 ? $"{failCount} records failed to sync" : null);
 
                 System.Diagnostics.Debug.WriteLine($"Individual sync completed for {studentId}: {successCount} successful, {failCount} failed");
-                return failCount == 0;
+                return new SyncResult 
+                { 
+                    Success = failCount == 0, 
+                    Message = failCount == 0 ? "Sync completed successfully" : $"{failCount} records failed to sync",
+                    SuccessCount = successCount,
+                    FailCount = failCount
+                };
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error in individual sync: {ex.Message}");
                 await LogSyncAsync("IndividualSync", 0, "Error", ex.Message);
-                return false;
+                return new SyncResult { Success = false, Message = $"Error: {ex.Message}" };
             }
         }
 
@@ -848,8 +1136,79 @@ namespace ScannerMaui.Services
             }
         }
 
+        // Method to validate if a student is in the teacher's class list
+        private async Task<bool> ValidateStudentInTeacherClassAsync(string studentId, string apiBaseUrl, string teacherId)
+        {
+            try
+            {
+                using var httpClient = new HttpClient();
+                httpClient.BaseAddress = new Uri(apiBaseUrl);
+                httpClient.Timeout = TimeSpan.FromSeconds(10);
+
+                // Get all students assigned to this teacher
+                var response = await httpClient.GetAsync($"api/teacher/{teacherId}/students");
+                
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    var students = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object>>>(json);
+                    
+                    if (students != null)
+                    {
+                        // Check if the student ID exists in the teacher's student list
+                        var studentExists = students.Any(s => s.ContainsKey("studentId") && s["studentId"].ToString() == studentId);
+                        System.Diagnostics.Debug.WriteLine($"Student {studentId} validation result: {studentExists}");
+                        return studentExists;
+                    }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error validating student {studentId}: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error validating student {studentId}: {ex.Message}");
+            }
+            
+            return false; // Default to false if validation fails
+        }
+
+        // Method to remove all records for an invalid student
+        private async Task RemoveInvalidStudentRecordsAsync(string studentId)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                // Remove from daily attendance table
+                var dailyCommand = new SqliteCommand(
+                    "DELETE FROM offline_daily_attendance WHERE student_id = @studentId",
+                    connection);
+                dailyCommand.Parameters.AddWithValue("@studentId", studentId);
+
+                var dailyResult = await dailyCommand.ExecuteNonQueryAsync();
+
+                // Remove from regular attendance table
+                var regularCommand = new SqliteCommand(
+                    "DELETE FROM offline_attendance WHERE student_id = @studentId",
+                    connection);
+                regularCommand.Parameters.AddWithValue("@studentId", studentId);
+
+                var regularResult = await regularCommand.ExecuteNonQueryAsync();
+
+                var totalRemoved = dailyResult + regularResult;
+                System.Diagnostics.Debug.WriteLine($"Removed {totalRemoved} invalid records for student {studentId} (daily: {dailyResult}, regular: {regularResult})");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error removing invalid student records: {ex.Message}");
+            }
+        }
+
         // Auto-sync method to send offline data to API when connection is restored
-        public async Task<bool> AutoSyncOfflineDataAsync(string apiBaseUrl, string teacherId)
+        public async Task<SyncResult> AutoSyncOfflineDataAsync(string apiBaseUrl, string teacherId)
         {
             try
             {
@@ -857,10 +1216,35 @@ namespace ScannerMaui.Services
                 if (!unsyncedRecords.Any())
                 {
                     System.Diagnostics.Debug.WriteLine("No offline records to sync");
-                    return true;
+                    return new SyncResult { Success = true, Message = "No offline records to sync" };
                 }
 
                 System.Diagnostics.Debug.WriteLine($"Starting auto-sync of {unsyncedRecords.Count} offline records");
+
+                // Get unique student IDs to validate
+                var uniqueStudentIds = unsyncedRecords.Select(r => r.StudentId).Distinct().ToList();
+                var invalidStudents = new List<string>();
+
+                // Validate each student first
+                foreach (var studentId in uniqueStudentIds)
+                {
+                    var isValidStudent = await ValidateStudentInTeacherClassAsync(studentId, apiBaseUrl, teacherId);
+                    if (!isValidStudent)
+                    {
+                        invalidStudents.Add(studentId);
+                        System.Diagnostics.Debug.WriteLine($"Student {studentId} is not in teacher's class list. Will be removed.");
+                    }
+                }
+
+                // Remove records for invalid students
+                foreach (var invalidStudentId in invalidStudents)
+                {
+                    await RemoveInvalidStudentRecordsAsync(invalidStudentId);
+                }
+
+                // Get updated records after removing invalid ones
+                var validRecords = await GetUnsyncedAttendanceAsync();
+                System.Diagnostics.Debug.WriteLine($"After validation: {validRecords.Count} valid records to sync (removed {invalidStudents.Count} invalid students)");
 
                 using var httpClient = new HttpClient();
                 httpClient.BaseAddress = new Uri(apiBaseUrl);
@@ -869,7 +1253,7 @@ namespace ScannerMaui.Services
                 int successCount = 0;
                 int failCount = 0;
 
-                foreach (var record in unsyncedRecords)
+                foreach (var record in validRecords)
                 {
                     try
                     {
@@ -916,19 +1300,40 @@ namespace ScannerMaui.Services
                     }
                 }
 
-                // Log sync results
-                await LogSyncAsync("AutoSync", unsyncedRecords.Count, 
-                    failCount == 0 ? "Success" : "Partial", 
-                    failCount > 0 ? $"{failCount} records failed to sync" : null);
+                // Log sync results including invalid students
+                var logMessage = failCount > 0 ? $"{failCount} records failed to sync" : null;
+                if (invalidStudents.Any())
+                {
+                    logMessage = logMessage != null ? 
+                        $"{logMessage}; {invalidStudents.Count} invalid students removed" : 
+                        $"{invalidStudents.Count} invalid students removed";
+                }
 
-                System.Diagnostics.Debug.WriteLine($"Auto-sync completed: {successCount} successful, {failCount} failed");
-                return failCount == 0;
+                await LogSyncAsync("AutoSync", validRecords.Count, 
+                    failCount == 0 ? "Success" : "Partial", logMessage);
+
+                System.Diagnostics.Debug.WriteLine($"Auto-sync completed: {successCount} successful, {failCount} failed, {invalidStudents.Count} invalid students removed");
+                
+                var message = failCount == 0 ? "Sync completed successfully" : $"{failCount} records failed to sync";
+                if (invalidStudents.Any())
+                {
+                    message += $". {invalidStudents.Count} invalid students removed from pending list.";
+                }
+                
+                return new SyncResult 
+                { 
+                    Success = failCount == 0, 
+                    Message = message,
+                    SuccessCount = successCount,
+                    FailCount = failCount,
+                    InvalidStudents = invalidStudents
+                };
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error in auto-sync: {ex.Message}");
                 await LogSyncAsync("AutoSync", 0, "Error", ex.Message);
-                return false;
+                return new SyncResult { Success = false, Message = $"Error: {ex.Message}" };
             }
         }
 
@@ -1036,5 +1441,14 @@ namespace ScannerMaui.Services
         public DateTime ScanTime { get; set; }
         public string? DeviceId { get; set; }
         public int RecordCount { get; set; }
+    }
+
+    public class SyncResult
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public int SuccessCount { get; set; }
+        public int FailCount { get; set; }
+        public List<string> InvalidStudents { get; set; } = new List<string>();
     }
 }

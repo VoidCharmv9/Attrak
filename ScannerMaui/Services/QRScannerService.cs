@@ -144,15 +144,21 @@ namespace ScannerMaui.Services
                 // Get current teacher ID (you'll need to implement this)
                 var teacherId = "current_teacher_id"; // Replace with actual teacher ID
                 
-                var syncSuccess = await _offlineDataService.AutoSyncOfflineDataAsync(apiBaseUrl, teacherId);
+                var syncResult = await _offlineDataService.AutoSyncOfflineDataAsync(apiBaseUrl, teacherId);
                 
-                if (syncSuccess)
+                if (syncResult.Success)
                 {
-                    System.Diagnostics.Debug.WriteLine("Auto-sync completed successfully");
+                    System.Diagnostics.Debug.WriteLine($"Auto-sync completed successfully: {syncResult.Message}");
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("Auto-sync completed with some failures");
+                    System.Diagnostics.Debug.WriteLine($"Auto-sync completed with issues: {syncResult.Message}");
+                }
+                
+                // Log invalid students if any
+                if (syncResult.InvalidStudents?.Any() == true)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Removed {syncResult.InvalidStudents.Count} invalid students during auto-sync");
                 }
             }
             catch (Exception ex)
