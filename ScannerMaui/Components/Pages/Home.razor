@@ -34,12 +34,21 @@
         border-radius: 10px;
         background-color: white;
         transition: border-color 0.3s ease;
+        /* Optimize for Android keyboard performance */
+        -webkit-appearance: none;
+        -webkit-tap-highlight-color: transparent;
+        will-change: transform;
+        transform: translateZ(0);
+        backface-visibility: hidden;
     }
 
         .form-control:focus {
             border-color: #0d6efd;
             box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
             outline: none;
+            /* Prevent keyboard lag on Android 14 */
+            -webkit-user-select: text;
+            user-select: text;
         }
 
     .form-select {
@@ -128,7 +137,12 @@
                     <label for="username" class="form-label">
                         <i class="fas fa-user me-2"></i>Username
                     </label>
-                    <InputText id="username" class="form-control" @bind-Value="loginRequest.Username" placeholder="Enter your username" />
+                    <InputText id="username" 
+                               class="form-control" 
+                               @bind-Value="loginRequest.Username"
+                               placeholder="Enter your username"
+                               autocomplete="username"
+                               inputmode="text" />
                     <ValidationMessage For="@(() => loginRequest.Username)" class="text-danger" />
                 </div>
 
@@ -136,7 +150,13 @@
                     <label for="password" class="form-label">
                         <i class="fas fa-lock me-2"></i>Password
                     </label>
-                    <InputText id="password" type="password" class="form-control" @bind-Value="loginRequest.Password" placeholder="Enter your password" />
+                    <InputText id="password" 
+                               type="password" 
+                               class="form-control" 
+                               @bind-Value="loginRequest.Password"
+                               placeholder="Enter your password"
+                               autocomplete="current-password"
+                               inputmode="text" />
                     <ValidationMessage For="@(() => loginRequest.Password)" class="text-danger" />
                 </div>
 
@@ -173,6 +193,16 @@
     protected override async Task OnInitializedAsync()
     {
         // No initialization needed for login-only page
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Optimize for Android 14 keyboard performance
+            await Task.Delay(100); // Small delay to ensure DOM is ready
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task HandleLogin()

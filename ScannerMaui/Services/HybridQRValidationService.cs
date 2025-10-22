@@ -223,6 +223,8 @@ namespace ScannerMaui.Services
                 System.Diagnostics.Debug.WriteLine($"Server Base URL: {_serverBaseUrl}");
                 
                 var currentTime = DateTime.Now;
+                System.Diagnostics.Debug.WriteLine($"Current local time: {currentTime:yyyy-MM-dd HH:mm:ss}");
+                System.Diagnostics.Debug.WriteLine($"Current local date: {currentTime.Date:yyyy-MM-dd}");
                 
                 HttpResponseMessage response;
                 
@@ -231,7 +233,7 @@ namespace ScannerMaui.Services
                     var request = new DailyTimeInRequest
                     {
                         StudentId = studentData.StudentId,
-                        Date = currentTime.Date,
+                        Date = currentTime.Date, // Use local date to match user's timezone
                         TimeIn = currentTime.TimeOfDay
                     };
                     
@@ -262,6 +264,19 @@ namespace ScannerMaui.Services
                 {
                     var responseContent = await response.Content.ReadAsStringAsync();
                     System.Diagnostics.Debug.WriteLine($"Server response content: {responseContent}");
+                    
+                    // Check if this is an "already recorded" response
+                    if (responseContent.Contains("already recorded") || responseContent.Contains("already marked"))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Already recorded response detected - not saving to SQLite backup");
+                        var alreadyRecordedType = attendanceType == "TimeIn" ? "Time In" : "Time Out";
+                        return new QRValidationResult
+                        {
+                            IsValid = true,
+                            Message = $"✓ {alreadyRecordedType} already recorded for today",
+                            StudentData = studentData
+                        };
+                    }
                     
                     // SUCCESS: Save to MySQL server, now also save to SQLite as backup
                     System.Diagnostics.Debug.WriteLine($"Server save successful, now saving to SQLite as backup...");
@@ -495,6 +510,19 @@ namespace ScannerMaui.Services
             }
         }
 
+        private string GetDeviceId()
+        {
+            try
+            {
+                // Generate a unique device ID for this session
+                return $"MAUI_{Environment.MachineName}_{DateTime.Now:yyyyMMddHHmmss}";
+            }
+            catch
+            {
+                return $"MAUI_Device_{DateTime.Now:yyyyMMddHHmmss}";
+            }
+        }
+
         private async Task<QRValidationResult> ValidateOfflineAsync(StudentQRData studentData, TeacherInfo teacher, string attendanceType)
         {
             try
@@ -508,7 +536,7 @@ namespace ScannerMaui.Services
                 var success = await _offlineDataService.SaveOfflineAttendanceAsync(
                     studentData.StudentId, 
                     attendanceType, // Use the provided attendance type
-                    null, // deviceId - let the service generate it
+                    GetDeviceId(), // Generate device ID for offline records
                     false // isOnlineMode = false for offline records
                 );
                 

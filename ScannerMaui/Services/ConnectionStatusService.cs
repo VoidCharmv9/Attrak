@@ -31,12 +31,32 @@ namespace ScannerMaui.Services
 
             try
             {
-                // Simple check: if we have internet access, assume we're online
+                // More reliable connection check: test actual server connectivity
                 var hasInternet = Connectivity.NetworkAccess == NetworkAccess.Internet;
                 var wasOnline = _isOnline;
-                _isOnline = hasInternet;
+                
+                // Test actual server connectivity if we have internet
+                if (hasInternet)
+                {
+                    try
+                    {
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                        var response = await _httpClient.GetAsync($"{_serverBaseUrl}/api/health", cts.Token);
+                        _isOnline = response.IsSuccessStatusCode;
+                        System.Diagnostics.Debug.WriteLine($"Server connectivity test: {_isOnline} (Status: {response.StatusCode})");
+                    }
+                    catch (Exception serverEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Server connectivity test failed: {serverEx.Message}");
+                        _isOnline = false; // If server test fails, we're offline
+                    }
+                }
+                else
+                {
+                    _isOnline = false;
+                }
 
-                System.Diagnostics.Debug.WriteLine($"ConnectionStatusService: Internet connectivity: {hasInternet}");
+                System.Diagnostics.Debug.WriteLine($"ConnectionStatusService: Internet: {hasInternet}, Server: {_isOnline}");
 
                 // Notify if status changed
                 if (wasOnline != _isOnline)
@@ -49,7 +69,7 @@ namespace ScannerMaui.Services
             {
                 System.Diagnostics.Debug.WriteLine($"Connection check error: {ex.Message}");
                 var wasOnline = _isOnline;
-                _isOnline = true; // Assume online if we can't determine
+                _isOnline = false; // Assume offline if we can't determine
 
                 // Notify if status changed
                 if (wasOnline != _isOnline)

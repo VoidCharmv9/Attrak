@@ -81,6 +81,9 @@ namespace ServerAtrrak.Controllers
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
 
+                _logger.LogInformation("Daily Time In request - StudentId: {StudentId}, Date: {Date}, TimeIn: {TimeIn}", 
+                    request.StudentId, request.Date, request.TimeIn);
+
                 // Check if there's already a record for this student on the SAME date
                 var checkQuery = "SELECT AttendanceId, TimeIn, TimeOut, Date FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date ORDER BY CreatedAt DESC";
                 using var checkCommand = new MySqlCommand(checkQuery, connection);
@@ -154,7 +157,7 @@ namespace ServerAtrrak.Controllers
                     updateCommand.Parameters.AddWithValue("@TimeIn", request.TimeIn.ToString(@"hh\:mm\:ss"));
                     updateCommand.Parameters.AddWithValue("@Status", status);
                     updateCommand.Parameters.AddWithValue("@Remarks", isLate ? "Late arrival" : "");
-                    updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
+                    updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.Now);
                     updateCommand.Parameters.AddWithValue("@AttendanceId", existingId);
 
                     await updateCommand.ExecuteNonQueryAsync();
@@ -173,7 +176,7 @@ namespace ServerAtrrak.Controllers
                     insertCommand.Parameters.AddWithValue("@TimeIn", request.TimeIn.ToString(@"hh\:mm\:ss"));
                     insertCommand.Parameters.AddWithValue("@Status", status);
                     insertCommand.Parameters.AddWithValue("@Remarks", isLate ? "Late arrival" : "");
-                    insertCommand.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
+                    insertCommand.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
 
                     await insertCommand.ExecuteNonQueryAsync();
                 }
@@ -341,6 +344,7 @@ namespace ServerAtrrak.Controllers
                     ORDER BY da.Date DESC, da.TimeIn DESC";
 
                 using var command = new MySqlCommand(query, connection);
+                // Use today's date for the query
                 command.Parameters.AddWithValue("@Date", DateTime.Today);
 
                 using var reader = await command.ExecuteReaderAsync();
@@ -549,7 +553,7 @@ namespace ServerAtrrak.Controllers
                                     updateCommand.Parameters.AddWithValue("@TimeOut", string.IsNullOrEmpty(record.TimeOut) ? (object)DBNull.Value : record.TimeOut);
                                     updateCommand.Parameters.AddWithValue("@Status", finalStatus);
                                     updateCommand.Parameters.AddWithValue("@Remarks", finalRemarks);
-                                    updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
+                                    updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.Now);
 
                                     await updateCommand.ExecuteNonQueryAsync();
                                     
@@ -608,8 +612,8 @@ namespace ServerAtrrak.Controllers
                             insertCommand.Parameters.AddWithValue("@TimeOut", string.IsNullOrEmpty(record.TimeOut) ? (object)DBNull.Value : record.TimeOut);
                             insertCommand.Parameters.AddWithValue("@Status", newStatus);
                             insertCommand.Parameters.AddWithValue("@Remarks", newRemarks);
-                            insertCommand.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
-                            insertCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
+                            insertCommand.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
+                            insertCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.Now);
 
                             await insertCommand.ExecuteNonQueryAsync();
                             

@@ -535,6 +535,12 @@ namespace ScannerMaui.Services
                 }
                 
                 System.Diagnostics.Debug.WriteLine($"Found {records.Count} unsynced daily attendance records");
+                
+                // Log each record for debugging
+                foreach (var record in records)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Record - ID: {record.AttendanceId}, Student: {record.StudentId}, Type: {record.AttendanceType}, TimeIn: {record.TimeIn}, TimeOut: {record.TimeOut}, DeviceId: {record.DeviceId}");
+                }
                 return records;
             }
             catch (Exception ex)
@@ -773,7 +779,7 @@ namespace ScannerMaui.Services
                 var dailyCommand = new SqliteCommand(
                     @"SELECT attendance_id, student_id, date, time_in, time_out, attendance_type, created_at, device_id
                       FROM offline_daily_attendance 
-                      WHERE is_synced = 0 AND device_id IS NOT NULL
+                      WHERE is_synced = 0
                       ORDER BY created_at",
                     connection);
 
@@ -849,7 +855,7 @@ namespace ScannerMaui.Services
                 var otherCommand = new SqliteCommand(
                     @"SELECT attendance_id, student_id, timestamp, attendance_type, device_id, created_at
                       FROM offline_attendance 
-                      WHERE is_synced = 0 AND device_id IS NOT NULL
+                      WHERE is_synced = 0
                       ORDER BY created_at",
                     connection);
                 
@@ -1900,6 +1906,9 @@ namespace ScannerMaui.Services
             {
                 System.Diagnostics.Debug.WriteLine("=== CLEARING ALL OFFLINE DATA ===");
                 System.Diagnostics.Debug.WriteLine($"Database path: {_databasePath}");
+                
+                // WARNING: This will clear ALL pending data - use with caution
+                System.Diagnostics.Debug.WriteLine("⚠️ WARNING: This will permanently delete all pending attendance records!");
                 
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();

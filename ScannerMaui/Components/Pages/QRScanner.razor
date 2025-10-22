@@ -609,8 +609,8 @@
         // Start timer to update current time display every second
         timeUpdateTimer = new Timer(async _ => await InvokeAsync(StateHasChanged), null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
         
-        // Start connection check timer (every 30 seconds)
-        connectionCheckTimer = new Timer(async _ => await ConnectionStatusService.CheckConnectionAsync(), null, TimeSpan.Zero, TimeSpan.FromSeconds(30));
+        // Start connection check timer (every 30 seconds) - use InvokeAsync for thread safety
+        connectionCheckTimer = new Timer(async _ => await InvokeAsync(async () => await ConnectionStatusService.CheckConnectionAsync()), null, TimeSpan.Zero, TimeSpan.FromSeconds(5));
     }
     
     public void Dispose()
@@ -1021,21 +1021,25 @@
             // We just need to update the UI and reload data
             System.Diagnostics.Debug.WriteLine($"QR Code scanned event received: {qrCode}");
             
-            // Reload attendance list to get the latest data
-            await LoadTodayAttendance();
-            
-            // Reload offline record count
-            await LoadOfflineRecordCount();
-            
-            // Update UI
-            StateHasChanged();
+            // Use InvokeAsync to ensure UI updates happen on the correct thread
+            await InvokeAsync(async () =>
+            {
+                // Reload attendance list to get the latest data
+                await LoadTodayAttendance();
+                
+                // Reload offline record count
+                await LoadOfflineRecordCount();
+                
+                // Update UI
+                StateHasChanged();
+            });
         }
     }
 
     private void SetAttendanceType(string type)
     {
         attendanceType = type;
-        StateHasChanged();
+        InvokeAsync(StateHasChanged);
     }
 
     private async Task SetAttendanceTypeAndStartScanning(string type)
@@ -1474,7 +1478,7 @@
         isScanning = false;
         isProcessing = false;
         lastScanResult = null;
-        StateHasChanged();
+        InvokeAsync(StateHasChanged);
     }
 
     private async Task ContinueScanning()
@@ -1915,37 +1919,41 @@
 
     private async void OnOfflineDataSaved(object? sender, string qrCode)
     {
-        await LoadOfflineRecordCount();
-        System.Diagnostics.Debug.WriteLine($"Offline data saved for QR code: {qrCode}");
-        
-        // Show scan result with student name
-        var studentName = await GetStudentNameAsync(qrCode);
-        lastScanResult = new AttendanceRecord
+        // Use InvokeAsync to ensure UI updates happen on the correct thread
+        await InvokeAsync(async () =>
         {
-            StudentId = qrCode,
-            StudentName = studentName,
-            Timestamp = DateTime.Now,
-            IsValid = true,
-            Status = "Saved Offline",
-            AttendanceType = "Offline",
-            Message = "Data saved offline - will sync when connection is available"
-        };
-        
-        message = $"✅ {studentName} - Data saved offline";
-        isSuccess = true;
-        StateHasChanged();
-        
-        // Try auto-sync if connection is available
-        // Note: Connection checking is now handled by HybridQRValidationService
-        try
-        {
-            System.Diagnostics.Debug.WriteLine("Attempting auto-sync...");
-            await TriggerAutoSyncSilent();
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Auto-sync failed: {ex.Message}");
-        }
+            await LoadOfflineRecordCount();
+            System.Diagnostics.Debug.WriteLine($"Offline data saved for QR code: {qrCode}");
+            
+            // Show scan result with student name
+            var studentName = await GetStudentNameAsync(qrCode);
+            lastScanResult = new AttendanceRecord
+            {
+                StudentId = qrCode,
+                StudentName = studentName,
+                Timestamp = DateTime.Now,
+                IsValid = true,
+                Status = "Saved Offline",
+                AttendanceType = "Offline",
+                Message = "Data saved offline - will sync when connection is available"
+            };
+            
+            message = $"✅ {studentName} - Data saved offline";
+            isSuccess = true;
+            StateHasChanged();
+            
+            // Try auto-sync if connection is available
+            // Note: Connection checking is now handled by HybridQRValidationService
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("Attempting auto-sync...");
+                await TriggerAutoSyncSilent();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Auto-sync failed: {ex.Message}");
+            }
+        });
     }
 
     private async void OnConnectionStatusChanged(object? sender, bool isOnline)
@@ -1953,12 +1961,27 @@
         await InvokeAsync(StateHasChanged);
         System.Diagnostics.Debug.WriteLine($"Connection status changed: {(isOnline ? "Online" : "Offline")}");
         
-        // Auto-sync when connection is restored
+        // IMPORTANT: Never clear pending data when connection changes
+        // Pending data should always be preserved regardless of connection status
+        
+        // Auto-sync when connection is restored (but don't clear data if sync fails)
         if (isOnline && offlineRecordCount > 0)
         {
             System.Diagnostics.Debug.WriteLine("Connection restored with pending offline records, attempting auto-sync...");
-            await TriggerAutoSyncSilent();
+            try
+            {
+                await TriggerAutoSyncSilent();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Auto-sync failed after connection restore: {ex.Message}");
+                // Don't clear data - just log the error and keep pending records
+            }
         }
+        
+        // Refresh offline record count to ensure UI shows correct status
+        await LoadOfflineRecordCount();
+        System.Diagnostics.Debug.WriteLine($"Offline record count after connection change: {offlineRecordCount}");
     }
 
     // Offline Records Methods

@@ -50,13 +50,13 @@
                             
                             <div class="mb-3">
                                 <label for="username" class="form-label">Username</label>
-                                <InputText id="username" class="form-control" @bind-Value="loginRequest.Username" @oninput="OnLoginUsernameChanged" placeholder="Enter your username" />
+                                <InputText id="username" class="form-control" @bind-Value="loginRequest.Username" placeholder="Enter your username" />
                                 <ValidationMessage For="@(() => loginRequest.Username)" class="text-danger" />
                             </div>
 
                             <div class="mb-3">
                                 <label for="password" class="form-label">Password</label>
-                                <InputText id="password" type="password" class="form-control" @bind-Value="loginRequest.Password" @oninput="OnLoginPasswordChanged" placeholder="Enter your password" />
+                                <InputText id="password" type="password" class="form-control" @bind-Value="loginRequest.Password" placeholder="Enter your password" />
                                 <ValidationMessage For="@(() => loginRequest.Password)" class="text-danger" />
                             </div>
 

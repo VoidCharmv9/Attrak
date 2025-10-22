@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-	<application android:allowBackup="true" android:icon="@mipmap/appicon" android:supportsRtl="true" android:usesCleartextTraffic="true" android:networkSecurityConfig="@xml/network_security_config"></application>
+	<application android:allowBackup="true" android:icon="@mipmap/appicon" android:supportsRtl="true" android:usesCleartextTraffic="true" android:networkSecurityConfig="@xml/network_security_config" android:hardwareAccelerated="true" android:largeHeap="true"></application>
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 	<uses-permission android:name="android.permission.INTERNET" />
 	<uses-permission android:name="android.permission.SEND_SMS" />
@@ -11,10 +11,10 @@
 	<uses-feature android:name="android.hardware.camera" android:required="true" />
 	<uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 	
-	<!-- Storage permissions for database and file access -->
-	<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-	<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-	<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+	<!-- Legacy external storage for Android <= 12 -->
+	<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+	<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+	<!-- Do NOT request MANAGE_EXTERNAL_STORAGE; not needed and restricted -->
 	
 	<!-- For Android 13+ (API 33+) -->
 	<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
