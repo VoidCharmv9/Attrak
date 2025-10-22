@@ -74,7 +74,10 @@ namespace ScannerMaui.Pages
                             {
                                 try
                                 {
-                                    var validationResult = await _qrValidationService.ValidateQRCodeAsync(result.Value);
+                                    System.Diagnostics.Debug.WriteLine($"=== QR Code Scanned: {result.Value} ===");
+                                    System.Diagnostics.Debug.WriteLine($"Attendance Type: {_currentAttendanceType}");
+                                    
+                                    var validationResult = await _qrValidationService.ValidateQRCodeAsync(result.Value, _currentAttendanceType);
                                     
                                     MainThread.BeginInvokeOnMainThread(() =>
                                     {

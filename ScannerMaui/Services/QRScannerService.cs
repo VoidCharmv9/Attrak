@@ -172,15 +172,16 @@ namespace ScannerMaui.Services
             return "Connection status handled by HybridQRValidationService";
         }
 
-        public async Task ProcessQRCode(string qrCode)
+        public async Task ProcessQRCode(string qrCode, string attendanceType = "TimeIn")
         {
             try
             {
                 System.Diagnostics.Debug.WriteLine($"=== Processing QR Code: {qrCode} ===");
+                System.Diagnostics.Debug.WriteLine($"Attendance Type: {attendanceType}");
                 
                 // Use HybridQRValidationService to validate the QR code
                 // This service automatically handles online/offline switching and saving
-                var result = await _qrValidationService.ValidateQRCodeAsync(qrCode);
+                var result = await _qrValidationService.ValidateQRCodeAsync(qrCode, attendanceType);
                 
                 if (result.IsValid)
                 {

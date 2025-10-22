@@ -10,6 +10,7 @@
 @inject ScannerMaui.Services.QRScannerService QRScannerService
 @inject ScannerMaui.Services.OfflineDataService OfflineDataService
 @inject ScannerMaui.Services.ConnectionStatusService ConnectionStatusService
+@inject ScannerMaui.Services.HybridQRValidationService HybridQRValidationService
 @implements IDisposable
 
 <PageTitle>QR Scanner - Attrak</PageTitle>
@@ -33,9 +34,9 @@
                         <span class="badge bg-warning text-dark">
                             📱 @offlineRecordCount offline
                         </span>
-                            <button class="btn btn-sm btn-success" @onclick="ShowPendingModal" title="View Pending Students">
-                                <i class="fas fa-sync"></i>
-                            </button>
+                                <button class="btn btn-sm btn-success" @onclick="ShowPendingModal" title="View Pending Students">
+                                    <i class="fas fa-sync"></i>
+                                </button>
                         </div>
                     }
                 </div>
@@ -234,6 +235,10 @@
                     <button class="btn btn-sm btn-warning" @onclick="ForceDatabaseInit">Force DB Init</button>
                     <button class="btn btn-sm btn-danger" @onclick="TestOfflineMode">Test Offline Mode</button>
                     <button class="btn btn-sm btn-info" @onclick="TestDatabaseConnection">Test DB Connection</button>
+                    <button class="btn btn-sm btn-secondary" @onclick="CheckSyncStatus">Check Sync Status</button>
+                    <button class="btn btn-sm btn-dark" @onclick="ClearSyncedRecords">Clear Synced Records</button>
+                    <button class="btn btn-sm btn-warning" @onclick="ForceMarkAllAsSynced">Force Mark All Synced</button>
+                    <button class="btn btn-sm btn-danger" @onclick="ForceRefreshCount">Force Refresh Count</button>
                 </div>
             </div>
         </div>
@@ -1027,6 +1032,7 @@
                 StateHasChanged();
     }
 
+
     private List<AttendanceRecord> GetUniqueAttendanceRecords()
     {
         // Group by StudentId and AttendanceType, then take the latest record for each combination
@@ -1140,172 +1146,52 @@
             
             System.Diagnostics.Debug.WriteLine($"Processing {attendanceType} for student {studentId} at {currentTime:yyyy-MM-dd HH:mm:ss}");
             
-            var httpClient = HttpClientFactory.CreateClient("AttrakAPI");
+            // Use HybridQRValidationService to handle both online and offline scenarios
+            var validationResult = await HybridQRValidationService.ValidateQRCodeAsync(studentId, attendanceType);
             
-            HttpResponseMessage response;
-            
-            if (attendanceType == "TimeIn")
+            if (validationResult.IsValid)
             {
-                var request = new DailyTimeInRequest
-            {
-                StudentId = studentId,
-                    Date = currentTime.Date,
-                    TimeIn = currentTime.TimeOfDay
-                };
-
-                System.Diagnostics.Debug.WriteLine($"Sending Time In request - StudentId: {request.StudentId}, Date: {request.Date}, TimeIn: {request.TimeIn}");
-                response = await httpClient.PostAsJsonAsync("api/dailyattendance/daily-timein", request);
-            }
-            else
-            {
-                var request = new DailyTimeOutRequest
-                {
-                    StudentId = studentId,
-                    Date = currentTime.Date,
-                    TimeOut = currentTime.TimeOfDay
-                };
-
-                System.Diagnostics.Debug.WriteLine($"Sending Time Out request - StudentId: {request.StudentId}, Date: {request.Date}, TimeOut: {request.TimeOut}");
-                response = await httpClient.PostAsJsonAsync("api/dailyattendance/daily-timeout", request);
-            }
-            
-            System.Diagnostics.Debug.WriteLine($"API Response Status: {response.StatusCode}");
-            
-            if (response.IsSuccessStatusCode)
-            {
-                var responseContent = await response.Content.ReadAsStringAsync();
-                System.Diagnostics.Debug.WriteLine($"API Response Content: {responseContent}");
-                
-                if (attendanceType == "TimeIn")
-                {
-                    var result = await response.Content.ReadFromJsonAsync<DailyTimeInResponse>();
-                    System.Diagnostics.Debug.WriteLine($"Parsed Time In Result - Success: {result?.Success}, Message: {result?.Message}");
-                    
-                if (result?.Success == true)
-                {
-                    // Reload attendance list to get the latest data from server
-                    await LoadTodayAttendance();
-                    
-                    // Get student name for display
-                    var studentName = await GetStudentNameAsync(studentId);
-                    
-                    // Create a temporary record for display feedback
-                    var feedbackRecord = new AttendanceRecord
-                    {
-                        StudentId = studentId,
-                        StudentName = studentName,
-                        Timestamp = DateTime.Now,
-                            IsValid = true,
-                        Status = result.Status,
-                            AttendanceType = "TimeIn",
-                        Message = result.Message
-                    };
-                    
-                    lastScanResult = feedbackRecord;
-                    
-                    // Play success sound and show green feedback
-                        await PlaySuccessSound();
-                        message = $"Time In marked: {result.TimeIn} ({result.Status})";
-                        isSuccess = true;
-                    }
-                    else
-                    {
-                        lastScanResult = new AttendanceRecord
-                        {
-                            StudentId = studentId,
-                            StudentName = "Unknown",
-                            Timestamp = DateTime.Now,
-                            IsValid = false,
-                            Status = "Error",
-                            AttendanceType = "TimeIn",
-                            Message = result?.Message ?? "Failed to mark Time In"
-                        };
-                        message = result?.Message ?? "Failed to mark Time In";
-                        isSuccess = false;
-                    }
-                }
-                else
-                {
-                    var result = await response.Content.ReadFromJsonAsync<DailyTimeOutResponse>();
-                    System.Diagnostics.Debug.WriteLine($"Parsed Time Out Result - Success: {result?.Success}, Message: {result?.Message}");
-                    
-                    if (result?.Success == true)
-                    {
-                        // Reload attendance list to get the latest data from server
-                        await LoadTodayAttendance();
-                        
-                        // Play success sound and show green feedback
-                        await PlaySuccessSound();
-                        message = $"✓ Time Out: {result.TimeOut} ({result.Remarks})";
-                        isSuccess = true;
-                        
-                        // Show success feedback briefly then continue scanning
-                        StateHasChanged();
-                        await Task.Delay(2000); // Show success for 2 seconds
-                        
-                        // Continue scanning automatically
-                        await StartContinuousScanning();
-                }
-                else
-                {
-                    lastScanResult = new AttendanceRecord
-                    {
-                        StudentId = studentId,
-                        StudentName = "Unknown",
-                        Timestamp = DateTime.Now,
-                        IsValid = false,
-                        Status = "Error",
-                            AttendanceType = "TimeOut",
-                            Message = result?.Message ?? "Failed to mark Time Out"
-                    };
-                        message = result?.Message ?? "Failed to mark Time Out";
-                    isSuccess = false;
-                    }
-                }
-            }
-            else
-            {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                System.Diagnostics.Debug.WriteLine($"API Error Response: {errorContent}");
-                
-                // Try to parse the error response to get the actual message
-                string errorMessage = $"API Error: {response.StatusCode}";
-                try
-                {
-                    var errorResponse = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(errorContent);
-                    if (errorResponse != null && errorResponse.ContainsKey("message"))
-                    {
-                        errorMessage = errorResponse["message"].ToString() ?? errorMessage;
-                        
-                        // Handle specific error cases
-                        if (errorMessage.Contains("already marked"))
-                        {
-                            errorMessage = "Attendance already marked for today";
-                        }
-                        else if (errorMessage.Contains("Invalid request"))
-                        {
-                            errorMessage = "Invalid student data";
-                        }
-                    }
-                }
-                catch
-                {
-                    // If parsing fails, use the raw content
-                    errorMessage = errorContent.Length > 100 ? errorContent.Substring(0, 100) + "..." : errorContent;
-                }
-                
+                // Success - show positive feedback
                 var studentName = await GetStudentNameAsync(studentId);
+                
                 lastScanResult = new AttendanceRecord
                 {
                     StudentId = studentId,
                     StudentName = studentName,
                     Timestamp = DateTime.Now,
+                    IsValid = true,
+                    Status = "Success",
+                    AttendanceType = attendanceType,
+                    Message = validationResult.Message
+                };
+                
+                message = validationResult.Message;
+                isSuccess = true;
+                
+                // Play success sound
+                await PlaySuccessSound();
+                
+                // Reload attendance list to get the latest data
+                await LoadTodayAttendance();
+                
+                // Reload offline record count
+                await LoadOfflineRecordCount();
+            }
+            else
+            {
+                // Failed validation - show error
+                lastScanResult = new AttendanceRecord
+                {
+                    StudentId = studentId,
+                    StudentName = "Unknown",
+                    Timestamp = DateTime.Now,
                     IsValid = false,
                     Status = "Error",
                     AttendanceType = attendanceType,
-                    Message = errorMessage
+                    Message = validationResult.Message
                 };
-                message = errorMessage;
+                
+                message = validationResult.Message;
                 isSuccess = false;
             }
         }
@@ -1650,11 +1536,47 @@
             System.Diagnostics.Debug.WriteLine("Loading offline record count...");
             offlineRecordCount = await QRScannerService.GetOfflineRecordCountAsync();
             System.Diagnostics.Debug.WriteLine($"Offline record count loaded: {offlineRecordCount}");
+            
+            // Force UI refresh
             StateHasChanged();
+            
+            // Also try to refresh the connection status display
+            await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error loading offline record count: {ex.Message}");
+            offlineRecordCount = 0;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ForceRefreshCount()
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("=== Force Refreshing Count ===");
+            
+            // Get fresh count from database
+            var newCount = await QRScannerService.GetOfflineRecordCountAsync();
+            System.Diagnostics.Debug.WriteLine($"Fresh count from database: {newCount}");
+            
+            // Update the variable
+            offlineRecordCount = newCount;
+            System.Diagnostics.Debug.WriteLine($"Updated offlineRecordCount variable: {offlineRecordCount}");
+            
+            // Force multiple UI refreshes
+            StateHasChanged();
+            await InvokeAsync(StateHasChanged);
+            await Task.Delay(100); // Small delay
+            StateHasChanged();
+            
+            System.Diagnostics.Debug.WriteLine($"Final count after force refresh: {offlineRecordCount}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error force refreshing count: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
         }
     }
 
@@ -1736,7 +1658,7 @@
             System.Diagnostics.Debug.WriteLine($"Simulating QR scan: {testQRCode}");
             
             // This should trigger the hybrid validation service
-            await QRScannerService.ProcessQRCode(testQRCode);
+            await QRScannerService.ProcessQRCode(testQRCode, attendanceType);
             
             // Wait a bit for processing
             await Task.Delay(1000);
@@ -1781,6 +1703,105 @@
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error testing database connection: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+        }
+    }
+
+    private async Task CheckSyncStatus()
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("=== Checking Sync Status ===");
+            System.Diagnostics.Debug.WriteLine($"OfflineDataService is null: {OfflineDataService == null}");
+            
+            if (OfflineDataService == null)
+            {
+                System.Diagnostics.Debug.WriteLine("ERROR: OfflineDataService is null!");
+                return;
+            }
+            
+            System.Diagnostics.Debug.WriteLine("Checking sync status...");
+            await OfflineDataService.CheckSyncStatusAsync();
+            
+            // Also refresh the count
+            await LoadOfflineRecordCount();
+            System.Diagnostics.Debug.WriteLine($"Current offline record count: {offlineRecordCount}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error checking sync status: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+        }
+    }
+
+    private async Task ClearSyncedRecords()
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("=== Clearing Synced Records ===");
+            System.Diagnostics.Debug.WriteLine($"OfflineDataService is null: {OfflineDataService == null}");
+            
+            if (OfflineDataService == null)
+            {
+                System.Diagnostics.Debug.WriteLine("ERROR: OfflineDataService is null!");
+                return;
+            }
+            
+            System.Diagnostics.Debug.WriteLine("Clearing synced records...");
+            var success = await OfflineDataService.ClearSyncedRecordsAsync();
+            
+            if (success)
+            {
+                System.Diagnostics.Debug.WriteLine("Successfully cleared synced records");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("Failed to clear synced records");
+            }
+            
+            // Force refresh the count
+            await ForceRefreshCount();
+            System.Diagnostics.Debug.WriteLine($"Offline record count after clearing: {offlineRecordCount}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error clearing synced records: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+        }
+    }
+
+    private async Task ForceMarkAllAsSynced()
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("=== Force Marking All Records as Synced ===");
+            System.Diagnostics.Debug.WriteLine($"OfflineDataService is null: {OfflineDataService == null}");
+            
+            if (OfflineDataService == null)
+            {
+                System.Diagnostics.Debug.WriteLine("ERROR: OfflineDataService is null!");
+                return;
+            }
+            
+            System.Diagnostics.Debug.WriteLine("Force marking all records as synced...");
+            var success = await OfflineDataService.ForceMarkAllAsSyncedAsync();
+            
+            if (success)
+            {
+                System.Diagnostics.Debug.WriteLine("Successfully marked all records as synced");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("Failed to mark all records as synced");
+            }
+            
+            // Force refresh the count
+            await ForceRefreshCount();
+            System.Diagnostics.Debug.WriteLine($"Offline record count after force marking: {offlineRecordCount}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error force marking all records as synced: {ex.Message}");
             System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
         }
     }
@@ -1873,35 +1894,28 @@
             // Get current teacher ID
             var teacherId = currentTeacher?.TeacherId ?? "unknown";
             
-            var result = await OfflineDataService.AutoSyncOfflineDataAsync(apiBaseUrl, teacherId);
+            // Use HybridQRValidationService for sync
+            var success = await HybridQRValidationService.SyncOfflineDataAsync();
             
-            if (result.Success)
+            if (success)
             {
                 await LoadOfflineRecordCount(); // Refresh count
-                message = $"✅ {result.Message}";
+                message = "✅ Offline records synced successfully";
                 isSuccess = true;
                 System.Diagnostics.Debug.WriteLine("Manual sync completed successfully");
+                System.Diagnostics.Debug.WriteLine($"Offline record count after sync: {offlineRecordCount}");
+                
+                // Close any open modals
+                showOfflineRecordsModal = false;
+                showPendingModal = false;
             }
             else
             {
                 await LoadOfflineRecordCount(); // Refresh count
-                message = $"⚠️ {result.Message}";
+                message = "❌ Failed to sync offline records";
                 isSuccess = false;
-                System.Diagnostics.Debug.WriteLine($"Manual sync completed with issues: {result.Message}");
-            }
-            
-            // Show detailed feedback if there were invalid students
-            if (result.InvalidStudents?.Any() == true)
-            {
-                var invalidStudentNames = new List<string>();
-                foreach (var invalidStudentId in result.InvalidStudents)
-                {
-                    var studentName = await GetStudentNameAsync(invalidStudentId);
-                    invalidStudentNames.Add($"{studentName} ({invalidStudentId})");
-                }
-                
-                var invalidStudentsMessage = $"Removed invalid students: {string.Join(", ", invalidStudentNames)}";
-                message += $"\n\n{invalidStudentsMessage}";
+                System.Diagnostics.Debug.WriteLine("Manual sync failed");
+                System.Diagnostics.Debug.WriteLine($"Offline record count after failed sync: {offlineRecordCount}");
             }
         }
         catch (Exception ex)
@@ -1921,34 +1935,26 @@
     {
         try
         {
-            // Get API base URL from configuration
-            var apiBaseUrl = "https://attrak.onrender.com/"; // Your actual API URL
+            System.Diagnostics.Debug.WriteLine("=== Triggering Silent Auto Sync ===");
             
-            // Get current teacher ID
-            var teacherId = currentTeacher?.TeacherId ?? "unknown";
-            
-            var result = await OfflineDataService.AutoSyncOfflineDataAsync(apiBaseUrl, teacherId);
+            // Use HybridQRValidationService for sync
+            var success = await HybridQRValidationService.SyncOfflineDataAsync();
             
             await LoadOfflineRecordCount(); // Refresh count
             
-            if (result.Success)
+            if (success)
             {
                 System.Diagnostics.Debug.WriteLine("Silent auto-sync completed successfully");
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"Silent auto-sync completed with issues: {result.Message}");
-            }
-            
-            // Log invalid students but don't show UI feedback
-            if (result.InvalidStudents?.Any() == true)
-            {
-                System.Diagnostics.Debug.WriteLine($"Removed {result.InvalidStudents.Count} invalid students during silent sync");
+                System.Diagnostics.Debug.WriteLine("Silent auto-sync failed");
             }
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error in silent auto-sync: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
         }
     }
 

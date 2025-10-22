@@ -208,9 +208,15 @@ namespace ScannerMaui.Services
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine($"Attempting to save offline attendance: StudentId={studentId}, Type={attendanceType}, DeviceId={deviceId}");
+                System.Diagnostics.Debug.WriteLine($"=== SAVING OFFLINE ATTENDANCE ===");
+                System.Diagnostics.Debug.WriteLine($"StudentId: {studentId}");
+                System.Diagnostics.Debug.WriteLine($"AttendanceType: {attendanceType}");
+                System.Diagnostics.Debug.WriteLine($"DeviceId: {deviceId}");
                 System.Diagnostics.Debug.WriteLine($"Database path: {_databasePath}");
                 System.Diagnostics.Debug.WriteLine($"Database exists: {File.Exists(_databasePath)}");
+
+                // Ensure database is initialized
+                InitializeDatabase();
 
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
@@ -233,12 +239,14 @@ namespace ScannerMaui.Services
                     
                     if (existingId != null)
                     {
-                        // Update existing record
+                        // Update existing record - fix column name mapping and reset sync status
+                        var columnName = attendanceType == "TimeIn" ? "time_in" : "time_out";
                         var updateCommand = new SqliteCommand(
-                            $"UPDATE offline_daily_attendance SET {attendanceType.ToLower()} = @timeValue, updated_at = @updatedAt WHERE attendance_id = @attendanceId",
+                            $"UPDATE offline_daily_attendance SET {columnName} = @timeValue, updated_at = @updatedAt, is_synced = @isSynced WHERE attendance_id = @attendanceId",
                             connection);
                         updateCommand.Parameters.AddWithValue("@timeValue", timeValue);
                         updateCommand.Parameters.AddWithValue("@updatedAt", DateTime.Now);
+                        updateCommand.Parameters.AddWithValue("@isSynced", 0); // Reset to unsynced when updating
                         updateCommand.Parameters.AddWithValue("@attendanceId", existingId);
                         
                         var result = await updateCommand.ExecuteNonQueryAsync();
@@ -248,7 +256,7 @@ namespace ScannerMaui.Services
                     {
                         // Insert new record
                         var insertCommand = new SqliteCommand(
-                            "INSERT INTO offline_daily_attendance (attendance_id, student_id, date, time_in, time_out, status, device_id) VALUES (@attendanceId, @studentId, @date, @timeIn, @timeOut, @status, @deviceId)",
+                            "INSERT INTO offline_daily_attendance (attendance_id, student_id, date, time_in, time_out, status, device_id, is_synced) VALUES (@attendanceId, @studentId, @date, @timeIn, @timeOut, @status, @deviceId, @isSynced)",
                             connection);
                         var attendanceId = Guid.NewGuid().ToString();
                         var deviceIdValue = deviceId ?? GetDeviceId();
@@ -262,6 +270,7 @@ namespace ScannerMaui.Services
                         insertCommand.Parameters.AddWithValue("@timeOut", attendanceType == "TimeOut" ? timeValue : (object)DBNull.Value);
                         insertCommand.Parameters.AddWithValue("@status", "Present");
                         insertCommand.Parameters.AddWithValue("@deviceId", deviceIdValue);
+                        insertCommand.Parameters.AddWithValue("@isSynced", 0); // Explicitly set as unsynced
                         
                         var result = await insertCommand.ExecuteNonQueryAsync();
                         System.Diagnostics.Debug.WriteLine($"Offline daily attendance saved successfully. Rows affected: {result}");
@@ -271,13 +280,14 @@ namespace ScannerMaui.Services
                 {
                     // Use regular attendance table for other types
                     var command = new SqliteCommand(
-                        "INSERT INTO offline_attendance (attendance_id, student_id, timestamp, attendance_type, device_id) VALUES (@attendanceId, @studentId, @timestamp, @attendanceType, @deviceId)",
+                        "INSERT INTO offline_attendance (attendance_id, student_id, timestamp, attendance_type, device_id, is_synced) VALUES (@attendanceId, @studentId, @timestamp, @attendanceType, @deviceId, @isSynced)",
                         connection);
                     command.Parameters.AddWithValue("@attendanceId", Guid.NewGuid().ToString());
                     command.Parameters.AddWithValue("@studentId", studentId);
                     command.Parameters.AddWithValue("@timestamp", DateTime.Now);
                     command.Parameters.AddWithValue("@attendanceType", attendanceType);
                     command.Parameters.AddWithValue("@deviceId", deviceId ?? GetDeviceId());
+                    command.Parameters.AddWithValue("@isSynced", 0); // Explicitly set as unsynced
 
                     var result = await command.ExecuteNonQueryAsync();
                     System.Diagnostics.Debug.WriteLine($"Offline attendance saved successfully. Rows affected: {result}");
@@ -1465,6 +1475,8 @@ namespace ScannerMaui.Services
         {
             try
             {
+                System.Diagnostics.Debug.WriteLine($"=== Marking record as synced: {recordId} ===");
+                
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
 
@@ -1474,11 +1486,96 @@ namespace ScannerMaui.Services
                 command.Parameters.AddWithValue("@id", recordId.ToString());
 
                 var result = await command.ExecuteNonQueryAsync();
+                System.Diagnostics.Debug.WriteLine($"Mark as synced result: {result} rows affected");
+                
+                if (result > 0)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Successfully marked record {recordId} as synced");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"No records found with ID {recordId} to mark as synced");
+                }
+                
                 return result > 0;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error marking record as synced: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                return false;
+            }
+        }
+
+        public async Task<bool> MarkAsSyncedByStudentIdAsync(string studentId)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"=== Marking records as synced by student ID: {studentId} ===");
+                
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                // Mark all records for this student as synced
+                var command = new SqliteCommand(
+                    "UPDATE offline_daily_attendance SET is_synced = 1 WHERE student_id = @studentId AND is_synced = 0",
+                    connection);
+                command.Parameters.AddWithValue("@studentId", studentId);
+
+                var result = await command.ExecuteNonQueryAsync();
+                System.Diagnostics.Debug.WriteLine($"Mark as synced by student ID result: {result} rows affected");
+                
+                if (result > 0)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Successfully marked {result} records for student {studentId} as synced");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"No unsynced records found for student {studentId}");
+                }
+                
+                return result > 0;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error marking records as synced by student ID: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                return false;
+            }
+        }
+
+        public async Task<bool> ForceMarkAllAsSyncedAsync()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"=== Force marking ALL records as synced ===");
+                
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                // Mark ALL unsynced records as synced
+                var command = new SqliteCommand(
+                    "UPDATE offline_daily_attendance SET is_synced = 1 WHERE is_synced = 0",
+                    connection);
+
+                var result = await command.ExecuteNonQueryAsync();
+                System.Diagnostics.Debug.WriteLine($"Force mark all as synced result: {result} rows affected");
+                
+                if (result > 0)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Successfully marked {result} records as synced");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"No unsynced records found to mark as synced");
+                }
+                
+                return result > 0;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error force marking all records as synced: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                 return false;
             }
         }
@@ -1490,6 +1587,9 @@ namespace ScannerMaui.Services
                 System.Diagnostics.Debug.WriteLine("=== Testing Database Connection ===");
                 System.Diagnostics.Debug.WriteLine($"Database path: {_databasePath}");
                 System.Diagnostics.Debug.WriteLine($"Database exists: {File.Exists(_databasePath)}");
+                
+                // Ensure database is initialized
+                InitializeDatabase();
                 
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
@@ -1526,6 +1626,89 @@ namespace ScannerMaui.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error testing database connection: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                return false;
+            }
+        }
+
+        // Simple test method to verify offline saving works
+
+        public async Task CheckSyncStatusAsync()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("=== Checking Sync Status ===");
+                
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                // Check all records in offline_daily_attendance
+                var allRecordsCommand = new SqliteCommand(
+                    "SELECT attendance_id, student_id, is_synced FROM offline_daily_attendance ORDER BY created_at DESC",
+                    connection);
+                
+                using var reader = await allRecordsCommand.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    var attendanceId = reader.GetString("attendance_id");
+                    var studentId = reader.GetString("student_id");
+                    var isSynced = reader.GetInt32("is_synced");
+                    
+                    System.Diagnostics.Debug.WriteLine($"Record: {attendanceId}, Student: {studentId}, Synced: {isSynced}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error checking sync status: {ex.Message}");
+            }
+        }
+
+        public async Task<bool> ClearSyncedRecordsAsync()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("=== Clearing Synced Records ===");
+                
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                // First, count how many synced records exist
+                var countCommand = new SqliteCommand(
+                    "SELECT COUNT(*) FROM offline_daily_attendance WHERE is_synced = 1",
+                    connection);
+                var syncedCount = Convert.ToInt32(await countCommand.ExecuteScalarAsync());
+                System.Diagnostics.Debug.WriteLine($"Found {syncedCount} synced records to delete");
+
+                // Delete all synced records from offline_daily_attendance in one operation
+                var deleteCommand = new SqliteCommand(
+                    "DELETE FROM offline_daily_attendance WHERE is_synced = 1",
+                    connection);
+                
+                var result = await deleteCommand.ExecuteNonQueryAsync();
+                System.Diagnostics.Debug.WriteLine($"Successfully deleted {result} synced records from offline_daily_attendance");
+                
+                // Also delete from offline_attendance table
+                var countCommand2 = new SqliteCommand(
+                    "SELECT COUNT(*) FROM offline_attendance WHERE is_synced = 1",
+                    connection);
+                var syncedCount2 = Convert.ToInt32(await countCommand2.ExecuteScalarAsync());
+                System.Diagnostics.Debug.WriteLine($"Found {syncedCount2} synced records in offline_attendance to delete");
+
+                var deleteCommand2 = new SqliteCommand(
+                    "DELETE FROM offline_attendance WHERE is_synced = 1",
+                    connection);
+                
+                var result2 = await deleteCommand2.ExecuteNonQueryAsync();
+                System.Diagnostics.Debug.WriteLine($"Successfully deleted {result2} synced records from offline_attendance");
+                
+                var totalDeleted = result + result2;
+                System.Diagnostics.Debug.WriteLine($"Total synced records deleted: {totalDeleted}");
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error clearing synced records: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                 return false;
             }

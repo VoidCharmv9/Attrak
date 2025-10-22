@@ -82,20 +82,21 @@ namespace ServerAtrrak.Controllers
                 await connection.OpenAsync();
 
                 // Check if already marked for today
-                var checkQuery = "SELECT COUNT(*) FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date";
+                var checkQuery = "SELECT AttendanceId, TimeIn FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date";
                 using var checkCommand = new MySqlCommand(checkQuery, connection);
                 checkCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
                 checkCommand.Parameters.AddWithValue("@Date", request.Date.Date);
 
-                var existingCount = Convert.ToInt32(await checkCommand.ExecuteScalarAsync());
-                if (existingCount > 0)
+                using var reader = await checkCommand.ExecuteReaderAsync();
+                var existingId = "";
+                var existingTimeIn = "";
+                
+                if (await reader.ReadAsync())
                 {
-                    return BadRequest(new DailyTimeInResponse
-                    {
-                        Success = false,
-                        Message = "Attendance already marked for today"
-                    });
+                    existingId = reader.GetString("AttendanceId");
+                    existingTimeIn = reader.IsDBNull("TimeIn") ? "" : reader.GetString("TimeIn");
                 }
+                reader.Close();
 
                 // Determine status based on time
                 var timeInDateTime = request.Date.Date.Add(request.TimeIn);
@@ -103,21 +104,44 @@ namespace ServerAtrrak.Controllers
                 var isLate = timeInDateTime > schoolStartTime;
                 var status = isLate ? "Late" : "Present";
 
-                // Insert attendance record
-                var insertQuery = @"
-                    INSERT INTO daily_attendance (AttendanceId, StudentId, Date, TimeIn, Status, Remarks, CreatedAt)
-                    VALUES (@AttendanceId, @StudentId, @Date, @TimeIn, @Status, @Remarks, @CreatedAt)";
+                if (!string.IsNullOrEmpty(existingId))
+                {
+                    // Update existing record
+                    var updateQuery = @"
+                        UPDATE daily_attendance 
+                        SET TimeIn = @TimeIn, 
+                            Status = @Status,
+                            Remarks = @Remarks,
+                            UpdatedAt = @UpdatedAt
+                        WHERE AttendanceId = @AttendanceId";
 
-                using var insertCommand = new MySqlCommand(insertQuery, connection);
-                insertCommand.Parameters.AddWithValue("@AttendanceId", Guid.NewGuid().ToString());
-                insertCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
-                insertCommand.Parameters.AddWithValue("@Date", request.Date.Date);
-                insertCommand.Parameters.AddWithValue("@TimeIn", request.TimeIn.ToString(@"hh\:mm"));
-                insertCommand.Parameters.AddWithValue("@Status", status);
-                insertCommand.Parameters.AddWithValue("@Remarks", isLate ? "Late arrival" : "");
-                insertCommand.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
+                    using var updateCommand = new MySqlCommand(updateQuery, connection);
+                    updateCommand.Parameters.AddWithValue("@TimeIn", request.TimeIn.ToString(@"hh\:mm"));
+                    updateCommand.Parameters.AddWithValue("@Status", status);
+                    updateCommand.Parameters.AddWithValue("@Remarks", isLate ? "Late arrival" : "");
+                    updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
+                    updateCommand.Parameters.AddWithValue("@AttendanceId", existingId);
 
-                await insertCommand.ExecuteNonQueryAsync();
+                    await updateCommand.ExecuteNonQueryAsync();
+                }
+                else
+                {
+                    // Insert new record
+                    var insertQuery = @"
+                        INSERT INTO daily_attendance (AttendanceId, StudentId, Date, TimeIn, Status, Remarks, CreatedAt)
+                        VALUES (@AttendanceId, @StudentId, @Date, @TimeIn, @Status, @Remarks, @CreatedAt)";
+
+                    using var insertCommand = new MySqlCommand(insertQuery, connection);
+                    insertCommand.Parameters.AddWithValue("@AttendanceId", Guid.NewGuid().ToString());
+                    insertCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
+                    insertCommand.Parameters.AddWithValue("@Date", request.Date.Date);
+                    insertCommand.Parameters.AddWithValue("@TimeIn", request.TimeIn.ToString(@"hh\:mm"));
+                    insertCommand.Parameters.AddWithValue("@Status", status);
+                    insertCommand.Parameters.AddWithValue("@Remarks", isLate ? "Late arrival" : "");
+                    insertCommand.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
+
+                    await insertCommand.ExecuteNonQueryAsync();
+                }
 
                 _logger.LogInformation("Daily attendance marked for student: {StudentId}, Status: {Status}", request.StudentId, status);
 
