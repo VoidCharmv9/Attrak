@@ -76,7 +76,8 @@
                    FontSize="16"
                    FontAttributes="Bold"
                    HorizontalOptions="Center"
-                   IsVisible="False" />
+                   IsVisible="False"
+                   LineBreakMode="WordWrap" />
             
             <!-- Camera Controls -->
             <Grid ColumnDefinitions="*,*" ColumnSpacing="10">

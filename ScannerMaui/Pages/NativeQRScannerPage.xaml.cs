@@ -1,5 +1,6 @@
 using ZXing.Net.Maui;
 using ZXing.Net.Maui.Controls;
+using ScannerMaui.Services;
 
 namespace ScannerMaui.Pages
 {
@@ -9,6 +10,7 @@ namespace ScannerMaui.Pages
         private CameraLocation _currentCameraLocation = CameraLocation.Rear;
         private bool _isTorchOn = false;
         private string _currentAttendanceType = string.Empty;
+        private QRValidationService? _qrValidationService;
 
         public event EventHandler<string>? QRCodeScanned;
         public event EventHandler<string>? AttendanceTypeSelected;
@@ -17,6 +19,11 @@ namespace ScannerMaui.Pages
         {
             InitializeComponent();
             System.Diagnostics.Debug.WriteLine("NativeQRScannerPage created successfully");
+        }
+
+        public NativeQRScannerPage(QRValidationService qrValidationService) : this()
+        {
+            _qrValidationService = qrValidationService;
         }
 
         private void OnBarcodesDetected(object? sender, BarcodeDetectionEventArgs e)
@@ -60,43 +67,129 @@ namespace ScannerMaui.Pages
                             return; // Don't process the QR code
                         }
                         
-                        // Use MainThread to ensure UI updates are on the correct thread
-                        MainThread.BeginInvokeOnMainThread(() =>
+                        // Validate QR code if validation service is available
+                        if (_qrValidationService != null)
                         {
-                            try
+                            _ = Task.Run(async () =>
                             {
-                                // Show the scanned result
-                                resultLabel.Text = $"Scanned: {result.Value}";
-                                resultLabel.IsVisible = true;
-                                
-                                // Update status
-                                statusLabel.Text = "QR Code detected!";
-                                statusLabel.TextColor = Colors.Green;
-                                
-                                // Notify parent page about the scanned code
-                                QRCodeScanned?.Invoke(this, result.Value);
-                                
-                                // Show success feedback briefly
-                                resultLabel.Text = $"✓ Success: {result.Value}";
-                                resultLabel.TextColor = Colors.Green;
-                                
-                                // Clear the result after 2 seconds
-                                Task.Delay(2000).ContinueWith(_ => 
+                                try
                                 {
+                                    var validationResult = await _qrValidationService.ValidateQRCodeAsync(result.Value);
+                                    
                                     MainThread.BeginInvokeOnMainThread(() =>
                                     {
-                                        resultLabel.IsVisible = false;
-                                        resultLabel.Text = "";
-                                        statusLabel.Text = "Ready to scan next QR code";
-                                        statusLabel.TextColor = Colors.Green;
+                                        try
+                                        {
+                                            if (validationResult.IsValid)
+                                            {
+                                                // Show success message
+                                                resultLabel.Text = $"✓ {validationResult.Message}";
+                                                resultLabel.TextColor = Colors.Green;
+                                                resultLabel.IsVisible = true;
+                                                
+                                                statusLabel.Text = "Valid student - QR code accepted!";
+                                                statusLabel.TextColor = Colors.Green;
+                                                
+                                                // Notify parent page about the scanned code
+                                                QRCodeScanned?.Invoke(this, result.Value);
+                                                
+                                                // Clear the result after 3 seconds
+                                                Task.Delay(3000).ContinueWith(_ => 
+                                                {
+                                                    MainThread.BeginInvokeOnMainThread(() =>
+                                                    {
+                                                        resultLabel.IsVisible = false;
+                                                        resultLabel.Text = "";
+                                                        statusLabel.Text = "Ready to scan next QR code";
+                                                        statusLabel.TextColor = Colors.Green;
+                                                    });
+                                                });
+                                            }
+                                            else
+                                            {
+                                                // Show error message
+                                                resultLabel.Text = $"✗ {validationResult.Message}";
+                                                resultLabel.TextColor = Colors.Red;
+                                                resultLabel.IsVisible = true;
+                                                
+                                                statusLabel.Text = "Invalid QR code - Please try again";
+                                                statusLabel.TextColor = Colors.Red;
+                                                
+                                                // Clear the error after 5 seconds
+                                                Task.Delay(5000).ContinueWith(_ => 
+                                                {
+                                                    MainThread.BeginInvokeOnMainThread(() =>
+                                                    {
+                                                        resultLabel.IsVisible = false;
+                                                        resultLabel.Text = "";
+                                                        statusLabel.Text = "Ready to scan next QR code";
+                                                        statusLabel.TextColor = Colors.Green;
+                                                    });
+                                                });
+                                            }
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            System.Diagnostics.Debug.WriteLine($"Error updating UI: {ex.Message}");
+                                        }
                                     });
-                                });
-                            }
-                            catch (Exception ex)
+                                }
+                                catch (Exception ex)
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"Error validating QR code: {ex.Message}");
+                                    
+                                    MainThread.BeginInvokeOnMainThread(() =>
+                                    {
+                                        resultLabel.Text = $"✗ Error validating QR code: {ex.Message}";
+                                        resultLabel.TextColor = Colors.Red;
+                                        resultLabel.IsVisible = true;
+                                        
+                                        statusLabel.Text = "Validation error - Please try again";
+                                        statusLabel.TextColor = Colors.Red;
+                                    });
+                                }
+                            });
+                        }
+                        else
+                        {
+                            // Fallback to original behavior if no validation service
+                            MainThread.BeginInvokeOnMainThread(() =>
                             {
-                                System.Diagnostics.Debug.WriteLine($"Error updating UI: {ex.Message}");
-                            }
-                        });
+                                try
+                                {
+                                    // Show the scanned result
+                                    resultLabel.Text = $"Scanned: {result.Value}";
+                                    resultLabel.IsVisible = true;
+                                    
+                                    // Update status
+                                    statusLabel.Text = "QR Code detected!";
+                                    statusLabel.TextColor = Colors.Green;
+                                    
+                                    // Notify parent page about the scanned code
+                                    QRCodeScanned?.Invoke(this, result.Value);
+                                    
+                                    // Show success feedback briefly
+                                    resultLabel.Text = $"✓ Success: {result.Value}";
+                                    resultLabel.TextColor = Colors.Green;
+                                    
+                                    // Clear the result after 2 seconds
+                                    Task.Delay(2000).ContinueWith(_ => 
+                                    {
+                                        MainThread.BeginInvokeOnMainThread(() =>
+                                        {
+                                            resultLabel.IsVisible = false;
+                                            resultLabel.Text = "";
+                                            statusLabel.Text = "Ready to scan next QR code";
+                                            statusLabel.TextColor = Colors.Green;
+                                        });
+                                    });
+                                }
+                                catch (Exception ex)
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"Error updating UI: {ex.Message}");
+                                }
+                            });
+                        }
                         
                         // Continue scanning for continuous mode
                         // Don't stop scanning - let it continue automatically

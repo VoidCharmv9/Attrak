@@ -6,15 +6,17 @@ namespace ScannerMaui.Services
     {
         private readonly OfflineDataService _offlineDataService;
         private readonly ConnectionService _connectionService;
+        private readonly QRValidationService _qrValidationService;
         private string _currentAttendanceType = string.Empty;
 
         public event EventHandler<string>? QRCodeScanned;
         public event EventHandler<string>? OfflineDataSaved;
 
-        public QRScannerService(OfflineDataService offlineDataService, ConnectionService connectionService)
+        public QRScannerService(OfflineDataService offlineDataService, ConnectionService connectionService, QRValidationService qrValidationService)
         {
             _offlineDataService = offlineDataService;
             _connectionService = connectionService;
+            _qrValidationService = qrValidationService;
             
             // Subscribe to connection status changes for auto-sync
             _connectionService.ConnectionStatusChanged += OnConnectionStatusChanged;
@@ -34,7 +36,7 @@ namespace ScannerMaui.Services
             try
             {
                 _currentAttendanceType = attendanceType;
-                var scannerPage = new NativeQRScannerPage();
+                var scannerPage = new NativeQRScannerPage(_qrValidationService);
                 
                 // Set the attendance type if provided
                 if (!string.IsNullOrEmpty(attendanceType))

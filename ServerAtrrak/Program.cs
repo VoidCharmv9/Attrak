@@ -28,6 +28,9 @@ namespace ServerAtrrak
             
             // Register attendance services
             builder.Services.AddScoped<AttendanceService>();
+            
+            // Register QR validation services
+            builder.Services.AddScoped<QRValidationService>();
   
             builder.Services.AddCors(options =>
             {
