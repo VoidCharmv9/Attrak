@@ -216,12 +216,56 @@ namespace ScannerMaui.Services
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine($"=== ONLINE MODE WITH BACKUP: Saving to MySQL + SQLite ===");
+                System.Diagnostics.Debug.WriteLine($"=== ONLINE MODE: Validating QR Code First ===");
                 System.Diagnostics.Debug.WriteLine($"Student ID: {studentData.StudentId}");
                 System.Diagnostics.Debug.WriteLine($"Teacher ID: {teacher.TeacherId}");
                 System.Diagnostics.Debug.WriteLine($"Attendance Type: {attendanceType}");
                 System.Diagnostics.Debug.WriteLine($"Server Base URL: {_serverBaseUrl}");
                 
+                // FIRST: Validate QR code with server (this includes section validation)
+                System.Diagnostics.Debug.WriteLine("=== STEP 1: Server QR Validation ===");
+                var validationRequest = new
+                {
+                    QRCodeData = studentData.StudentId,
+                    TeacherId = teacher.TeacherId
+                };
+                
+                var validationUrl = _serverBaseUrl.EndsWith("/") ? $"{_serverBaseUrl}api/qrvalidation/validate" : $"{_serverBaseUrl}/api/qrvalidation/validate";
+                System.Diagnostics.Debug.WriteLine($"Validation URL: {validationUrl}");
+                
+                var validationResponse = await _httpClient.PostAsJsonAsync(validationUrl, validationRequest);
+                var validationContent = await validationResponse.Content.ReadAsStringAsync();
+                System.Diagnostics.Debug.WriteLine($"Server validation response: {validationResponse.StatusCode}");
+                System.Diagnostics.Debug.WriteLine($"Server validation content: {validationContent}");
+                
+                if (!validationResponse.IsSuccessStatusCode)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Server validation failed: {validationResponse.StatusCode}");
+                    return new QRValidationResult
+                    {
+                        IsValid = false,
+                        Message = "Server validation failed. Please try again.",
+                        ErrorType = QRValidationErrorType.ValidationError
+                    };
+                }
+                
+                // Parse validation response
+                var validationResult = System.Text.Json.JsonSerializer.Deserialize<ServerQRValidationResult>(validationContent);
+                if (validationResult == null || !validationResult.IsValid)
+                {
+                    System.Diagnostics.Debug.WriteLine($"QR validation failed: {validationResult?.Message}");
+                    return new QRValidationResult
+                    {
+                        IsValid = false,
+                        Message = validationResult?.Message ?? "QR code validation failed",
+                        ErrorType = QRValidationErrorType.ValidationError
+                    };
+                }
+                
+                System.Diagnostics.Debug.WriteLine($"✅ Server validation passed: {validationResult.Message}");
+                
+                // SECOND: Save attendance to server
+                System.Diagnostics.Debug.WriteLine("=== STEP 2: Saving Attendance ===");
                 var currentTime = DateTime.Now;
                 System.Diagnostics.Debug.WriteLine($"Current time: {currentTime}");
                 
@@ -386,11 +430,55 @@ namespace ScannerMaui.Services
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine($"=== ONLINE MODE: Saving to MySQL ===");
+                System.Diagnostics.Debug.WriteLine($"=== ONLINE MODE: Validating QR Code First ===");
                 System.Diagnostics.Debug.WriteLine($"Student ID: {studentData.StudentId}");
                 System.Diagnostics.Debug.WriteLine($"Teacher ID: {teacher.TeacherId}");
                 System.Diagnostics.Debug.WriteLine($"Attendance Type: {attendanceType}");
                 
+                // FIRST: Validate QR code with server (this includes section validation)
+                System.Diagnostics.Debug.WriteLine("=== STEP 1: Server QR Validation ===");
+                var validationRequest = new
+                {
+                    QRCodeData = studentData.StudentId,
+                    TeacherId = teacher.TeacherId
+                };
+                
+                var validationUrl = _serverBaseUrl.EndsWith("/") ? $"{_serverBaseUrl}api/qrvalidation/validate" : $"{_serverBaseUrl}/api/qrvalidation/validate";
+                System.Diagnostics.Debug.WriteLine($"Validation URL: {validationUrl}");
+                
+                var validationResponse = await _httpClient.PostAsJsonAsync(validationUrl, validationRequest);
+                var validationContent = await validationResponse.Content.ReadAsStringAsync();
+                System.Diagnostics.Debug.WriteLine($"Server validation response: {validationResponse.StatusCode}");
+                System.Diagnostics.Debug.WriteLine($"Server validation content: {validationContent}");
+                
+                if (!validationResponse.IsSuccessStatusCode)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Server validation failed: {validationResponse.StatusCode}");
+                    return new QRValidationResult
+                    {
+                        IsValid = false,
+                        Message = "Server validation failed. Please try again.",
+                        ErrorType = QRValidationErrorType.ValidationError
+                    };
+                }
+                
+                // Parse validation response
+                var validationResult = System.Text.Json.JsonSerializer.Deserialize<ServerQRValidationResult>(validationContent);
+                if (validationResult == null || !validationResult.IsValid)
+                {
+                    System.Diagnostics.Debug.WriteLine($"QR validation failed: {validationResult?.Message}");
+                    return new QRValidationResult
+                    {
+                        IsValid = false,
+                        Message = validationResult?.Message ?? "QR code validation failed",
+                        ErrorType = QRValidationErrorType.ValidationError
+                    };
+                }
+                
+                System.Diagnostics.Debug.WriteLine($"✅ Server validation passed: {validationResult.Message}");
+                
+                // SECOND: Save attendance to server
+                System.Diagnostics.Debug.WriteLine("=== STEP 2: Saving Attendance ===");
                 var currentTime = DateTime.Now;
                 
                 HttpResponseMessage response;
@@ -813,4 +901,5 @@ namespace ScannerMaui.Services
         public string SchoolId { get; set; } = string.Empty;
         public string? Strand { get; set; }
     }
+
 }
