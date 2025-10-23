@@ -81,8 +81,37 @@ namespace ServerAtrrak.Controllers
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
 
-                // Check if already marked for today - get ALL records for this student/date
-                var checkQuery = "SELECT AttendanceId, TimeIn, TimeOut FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date ORDER BY CreatedAt DESC";
+                // First check if there's already a record for this student on any recent date (within last 3 days)
+                var recentCheckQuery = "SELECT AttendanceId, TimeIn, TimeOut, Date FROM daily_attendance WHERE StudentId = @StudentId AND Date >= @RecentDate ORDER BY Date DESC, CreatedAt DESC LIMIT 1";
+                using var recentCheckCommand = new MySqlCommand(recentCheckQuery, connection);
+                recentCheckCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
+                recentCheckCommand.Parameters.AddWithValue("@RecentDate", DateTime.Today.AddDays(-3));
+                
+                using var recentReader = await recentCheckCommand.ExecuteReaderAsync();
+                if (await recentReader.ReadAsync())
+                {
+                    var existingDate = recentReader.GetDateTime("Date");
+                    var existingTimeIn = recentReader.IsDBNull("TimeIn") ? "" : recentReader.GetString("TimeIn");
+                    var existingTimeOut = recentReader.IsDBNull("TimeOut") ? "" : recentReader.GetString("TimeOut");
+                    recentReader.Close();
+                    
+                    // If there's already a record for this student on a different date, use that date
+                    if (existingDate.Date != request.Date.Date)
+                    {
+                        _logger.LogInformation("Found existing record for student {StudentId} on date {ExistingDate}, but request is for {RequestDate}. Using existing date.", 
+                            request.StudentId, existingDate.Date, request.Date.Date);
+                        
+                        // Update the request date to match the existing record
+                        request.Date = existingDate.Date;
+                    }
+                }
+                else
+                {
+                    recentReader.Close();
+                }
+                
+                // Now check if already marked for the correct date
+                var checkQuery = "SELECT AttendanceId, TimeIn, TimeOut, Date FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date ORDER BY CreatedAt DESC";
                 using var checkCommand = new MySqlCommand(checkQuery, connection);
                 checkCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
                 checkCommand.Parameters.AddWithValue("@Date", request.Date.Date);
@@ -128,7 +157,19 @@ namespace ServerAtrrak.Controllers
 
                 if (!string.IsNullOrEmpty(existingId))
                 {
-                    // Update existing record
+                    // Check if TimeIn already exists for this student today
+                    if (!string.IsNullOrEmpty(existingTimeIn))
+                    {
+                        _logger.LogWarning("TimeIn already exists for student: {StudentId} on date: {Date}, existing TimeIn: {ExistingTimeIn}", 
+                            request.StudentId, request.Date.Date, existingTimeIn);
+                        return BadRequest(new DailyTimeInResponse
+                        {
+                            Success = false,
+                            Message = "Time In already marked for today. Please mark Time Out instead."
+                        });
+                    }
+                    
+                    // Update existing record (only if TimeIn doesn't exist yet)
                     var updateQuery = @"
                         UPDATE daily_attendance 
                         SET TimeIn = @TimeIn, 
