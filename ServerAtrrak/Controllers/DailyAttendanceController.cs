@@ -21,6 +21,41 @@ namespace ServerAtrrak.Controllers
             _logger = logger;
         }
 
+        private async Task<(bool ok, string msg)> ValidateTeacherStudentAsync(MySqlConnection connection, string teacherId, string studentId)
+        {
+            var sql = @"
+                SELECT 
+                    s.SchoolId AS StudentSchoolId, s.GradeLevel AS StudentGrade, s.Section AS StudentSection,
+                    t.SchoolId AS TeacherSchoolId, COALESCE(t.Gradelvl, 0) AS TeacherGrade, COALESCE(t.Section, '') AS TeacherSection
+                FROM student s
+                INNER JOIN teacher t ON t.TeacherId = @TeacherId
+                WHERE s.StudentId = @StudentId
+                LIMIT 1";
+            using var cmd = new MySqlCommand(sql, connection);
+            cmd.Parameters.AddWithValue("@TeacherId", teacherId);
+            cmd.Parameters.AddWithValue("@StudentId", studentId);
+
+            using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync())
+                return (false, "Student/Teacher not found");
+
+            var sSchool = r.GetString("StudentSchoolId");
+            var tSchool = r.GetString("TeacherSchoolId");
+            var sGrade  = r.GetInt32("StudentGrade");
+            var tGrade  = r.GetInt32("TeacherGrade");
+            var sSect   = r.GetString("StudentSection");
+            var tSect   = r.GetString("TeacherSection");
+
+            if (!string.Equals(sSchool, tSchool, StringComparison.OrdinalIgnoreCase))
+                return (false, "School mismatch");
+            if (tGrade > 0 && sGrade > 0 && tGrade != sGrade)
+                return (false, "Grade level mismatch");
+            if (!string.IsNullOrWhiteSpace(tSect) && !string.IsNullOrWhiteSpace(sSect) && !string.Equals(tSect, sSect, StringComparison.OrdinalIgnoreCase))
+                return (false, $"Section mismatch (Teacher: {tSect}, Student: {sSect})");
+
+            return (true, "");
+        }
+
         [HttpGet("daily-status/{studentId}")]
         public async Task<ActionResult<DailyAttendanceStatus>> GetDailyStatus(string studentId, [FromQuery] DateTime date)
         {
@@ -80,6 +115,18 @@ namespace ServerAtrrak.Controllers
 
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
+
+                // Hard validation: ensure teacher-student match (school/grade/section)
+                var (ok, msg) = await ValidateTeacherStudentAsync(connection, request.TeacherId, request.StudentId);
+                if (!ok)
+                {
+                    _logger.LogWarning("Validation failed for TeacherId={TeacherId}, StudentId={StudentId}: {Message}", request.TeacherId, request.StudentId, msg);
+                    return BadRequest(new DailyTimeInResponse
+                    {
+                        Success = false,
+                        Message = $"Validation failed: {msg}"
+                    });
+                }
 
                 _logger.LogInformation("Request - StudentId: {StudentId}, Date: {Date}", 
                     request.StudentId, request.Date);
@@ -205,9 +252,6 @@ namespace ServerAtrrak.Controllers
         {
             try
             {
-                _logger.LogInformation("TimeOut request received for student: {StudentId}, Date: {Date}, TimeOut: {TimeOut}", 
-                    request.StudentId, request.Date, request.TimeOut);
-                
                 if (!ModelState.IsValid)
                 {
                     _logger.LogWarning("Invalid model state for TimeOut request: {ModelState}", ModelState);
@@ -218,9 +262,24 @@ namespace ServerAtrrak.Controllers
                     });
                 }
 
+                _logger.LogInformation("TimeOut request received for student: {StudentId}, Date: {Date}, TimeOut: {TimeOut}", 
+                    request.StudentId, request.Date, request.TimeOut);
+                
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
                 _logger.LogInformation("Database connection opened successfully");
+
+                // Hard validation: ensure teacher-student match (school/grade/section)
+                var (ok, msg) = await ValidateTeacherStudentAsync(connection, request.TeacherId, request.StudentId);
+                if (!ok)
+                {
+                    _logger.LogWarning("Validation failed for TeacherId={TeacherId}, StudentId={StudentId}: {Message}", request.TeacherId, request.StudentId, msg);
+                    return BadRequest(new DailyTimeOutResponse
+                    {
+                        Success = false,
+                        Message = $"Validation failed: {msg}"
+                    });
+                }
 
                 // Check if Time In exists for today - get the LATEST record to avoid duplicates
                 var checkQuery = "SELECT AttendanceId, TimeIn, Status, TimeOut FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date ORDER BY CreatedAt DESC LIMIT 1";

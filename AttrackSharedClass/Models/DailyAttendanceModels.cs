@@ -29,6 +29,9 @@ namespace AttrackSharedClass.Models
         
         [Required]
         public TimeSpan TimeIn { get; set; }
+
+        [Required]
+        public string TeacherId { get; set; } = "";
     }
 
     public class DailyTimeInResponse
@@ -49,6 +52,9 @@ namespace AttrackSharedClass.Models
         
         [Required]
         public TimeSpan TimeOut { get; set; }
+
+        [Required]
+        public string TeacherId { get; set; } = "";
     }
 
     public class DailyTimeOutResponse
