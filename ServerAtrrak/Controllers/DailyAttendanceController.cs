@@ -91,8 +91,8 @@ namespace ServerAtrrak.Controllers
                 if (await recentReader.ReadAsync())
                 {
                     var existingDate = recentReader.GetDateTime("Date");
-                    var existingTimeIn = recentReader.IsDBNull("TimeIn") ? "" : recentReader.GetString("TimeIn");
-                    var existingTimeOut = recentReader.IsDBNull("TimeOut") ? "" : recentReader.GetString("TimeOut");
+                    var recentTimeIn = recentReader.IsDBNull("TimeIn") ? "" : recentReader.GetString("TimeIn");
+                    var recentTimeOut = recentReader.IsDBNull("TimeOut") ? "" : recentReader.GetString("TimeOut");
                     recentReader.Close();
                     
                     // If there's already a record for this student on a different date, use that date
