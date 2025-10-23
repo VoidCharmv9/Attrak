@@ -130,12 +130,14 @@ namespace ServerAtrrak.Controllers
                     // Check if TimeIn already exists for this student today
                     if (!string.IsNullOrEmpty(existingTimeIn))
                     {
-                        _logger.LogWarning("TimeIn already exists for student: {StudentId} on date: {Date}, existing TimeIn: {ExistingTimeIn}", 
+                        _logger.LogInformation("TimeIn already exists for student: {StudentId} on date: {Date}, existing TimeIn: {ExistingTimeIn}", 
                             request.StudentId, request.Date.Date, existingTimeIn);
-                        return BadRequest(new DailyTimeInResponse
+                        return Ok(new DailyTimeInResponse
                         {
-                            Success = false,
-                            Message = "Time In already marked for today. Please mark Time Out instead."
+                            Success = true,
+                            Message = "Time In already marked for today. Please mark Time Out instead.",
+                            Status = "Present",
+                            TimeIn = existingTimeIn
                         });
                     }
                     
