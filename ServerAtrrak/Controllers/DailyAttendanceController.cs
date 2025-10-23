@@ -135,7 +135,7 @@ namespace ServerAtrrak.Controllers
                         return Ok(new DailyTimeInResponse
                         {
                             Success = true,
-                            Message = "Time In already marked for today. Please mark Time Out instead.",
+                            Message = "SUCCESS: Time In already recorded for today. Please mark Time Out instead.",
                             Status = "Present",
                             TimeIn = existingTimeIn
                         });
@@ -252,12 +252,13 @@ namespace ServerAtrrak.Controllers
                 // Check if Time Out already exists for this specific record
                 if (!string.IsNullOrEmpty(existingTimeOut))
                 {
-                    _logger.LogWarning("TimeOut already exists for student: {StudentId}, existing TimeOut: {ExistingTimeOut}", 
+                    _logger.LogInformation("TimeOut already exists for student: {StudentId}, existing TimeOut: {ExistingTimeOut}", 
                         request.StudentId, existingTimeOut);
-                    return BadRequest(new DailyTimeOutResponse
+                    return Ok(new DailyTimeOutResponse
                     {
-                        Success = false,
-                        Message = "Time Out already marked for today"
+                        Success = true,
+                        Message = "SUCCESS: Time Out already recorded for today",
+                        TimeOut = existingTimeOut
                     });
                 }
 
