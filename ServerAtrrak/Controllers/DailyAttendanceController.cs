@@ -41,7 +41,7 @@ namespace ServerAtrrak.Controllers
                 using var reader = await command.ExecuteReaderAsync();
                 if (await reader.ReadAsync())
                 {
-                    var timeIn = reader.IsDBNull("TimeIn") ? null : reader.GetString("TimeIn");
+                    var timeIn = reader.IsDBNull("TimeIn") ? null : reader.GetTimeSpan("TimeIn").ToString(@"hh\:mm\:ss");
                     var status = reader.GetString("Status");
                     
                     return Ok(new DailyAttendanceStatus
@@ -91,8 +91,8 @@ namespace ServerAtrrak.Controllers
                 if (await recentReader.ReadAsync())
                 {
                     var existingDate = recentReader.GetDateTime("Date");
-                    var recentTimeIn = recentReader.IsDBNull("TimeIn") ? "" : recentReader.GetString("TimeIn");
-                    var recentTimeOut = recentReader.IsDBNull("TimeOut") ? "" : recentReader.GetString("TimeOut");
+                    var recentTimeIn = recentReader.IsDBNull("TimeIn") ? "" : recentReader.GetTimeSpan("TimeIn").ToString(@"hh\:mm\:ss");
+                    var recentTimeOut = recentReader.IsDBNull("TimeOut") ? "" : recentReader.GetTimeSpan("TimeOut").ToString(@"hh\:mm\:ss");
                     recentReader.Close();
                     
                     // If there's already a record for this student on a different date, use that date
@@ -122,8 +122,8 @@ namespace ServerAtrrak.Controllers
                 if (await reader.ReadAsync())
                 {
                     existingId = reader.GetString("AttendanceId");
-                    existingTimeIn = reader.IsDBNull("TimeIn") ? "" : reader.GetString("TimeIn");
-                    existingTimeOut = reader.IsDBNull("TimeOut") ? "" : reader.GetString("TimeOut");
+                    existingTimeIn = reader.IsDBNull("TimeIn") ? "" : reader.GetTimeSpan("TimeIn").ToString(@"hh\:mm\:ss");
+                    existingTimeOut = reader.IsDBNull("TimeOut") ? "" : reader.GetTimeSpan("TimeOut").ToString(@"hh\:mm\:ss");
                     
                     // Check if there are multiple records (duplicates)
                     if (await reader.ReadAsync())
@@ -265,9 +265,9 @@ namespace ServerAtrrak.Controllers
                 }
 
                 var attendanceId = reader.GetString("AttendanceId");
-                var timeIn = reader.GetString("TimeIn");
+                var timeIn = reader.GetTimeSpan("TimeIn").ToString(@"hh\:mm\:ss");
                 var currentStatus = reader.GetString("Status");
-                var existingTimeOut = reader.IsDBNull("TimeOut") ? "" : reader.GetString("TimeOut");
+                var existingTimeOut = reader.IsDBNull("TimeOut") ? "" : reader.GetTimeSpan("TimeOut").ToString(@"hh\:mm\:ss");
                 reader.Close();
                 
                 _logger.LogInformation("Found TimeIn record - AttendanceId: {AttendanceId}, TimeIn: {TimeIn}, Status: {Status}, ExistingTimeOut: {ExistingTimeOut}", 
@@ -429,8 +429,8 @@ namespace ServerAtrrak.Controllers
                     records.Add(new DailyAttendanceRecord
                     {
                         Date = reader.GetDateTime("Date"),
-                        TimeIn = reader.IsDBNull("TimeIn") ? "" : reader.GetString("TimeIn"),
-                        TimeOut = reader.IsDBNull("TimeOut") ? "" : reader.GetString("TimeOut"),
+                        TimeIn = reader.IsDBNull("TimeIn") ? "" : reader.GetTimeSpan("TimeIn").ToString(@"hh\:mm\:ss"),
+                        TimeOut = reader.IsDBNull("TimeOut") ? "" : reader.GetTimeSpan("TimeOut").ToString(@"hh\:mm\:ss"),
                         Status = reader.GetString("Status"),
                         Remarks = reader.IsDBNull("Remarks") ? "" : reader.GetString("Remarks")
                     });
@@ -498,8 +498,8 @@ namespace ServerAtrrak.Controllers
                             using var reader = await checkExistingCommand.ExecuteReaderAsync();
                             if (await reader.ReadAsync())
                             {
-                                var existingTimeIn = reader.IsDBNull("TimeIn") ? null : reader.GetString("TimeIn");
-                                var existingTimeOut = reader.IsDBNull("TimeOut") ? null : reader.GetString("TimeOut");
+                                var existingTimeIn = reader.IsDBNull("TimeIn") ? null : reader.GetTimeSpan("TimeIn").ToString(@"hh\:mm\:ss");
+                                var existingTimeOut = reader.IsDBNull("TimeOut") ? null : reader.GetTimeSpan("TimeOut").ToString(@"hh\:mm\:ss");
                                 reader.Close();
                                 
                                 // Update the record with new values, but don't overwrite existing values with empty ones
