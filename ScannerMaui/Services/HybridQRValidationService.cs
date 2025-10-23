@@ -65,8 +65,8 @@ namespace ScannerMaui.Services
                 
                 if (isOnline)
                 {
-                    // ONLINE MODE: Save to MySQL server
-                    return await ValidateOnlineAsync(studentData, teacher, attendanceType);
+                    // ONLINE MODE: Save to MySQL server + SQLite backup
+                    return await ValidateOnlineWithBackupAsync(studentData, teacher, attendanceType);
                 }
                 else
                 {
@@ -152,6 +152,138 @@ namespace ScannerMaui.Services
             {
                 System.Diagnostics.Debug.WriteLine($"Health check error: {ex.Message}");
                 return false;
+            }
+        }
+
+        private async Task<QRValidationResult> ValidateOnlineWithBackupAsync(StudentQRData studentData, TeacherInfo teacher, string attendanceType)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"=== ONLINE MODE WITH BACKUP: Saving to MySQL + SQLite ===");
+                System.Diagnostics.Debug.WriteLine($"Student ID: {studentData.StudentId}");
+                System.Diagnostics.Debug.WriteLine($"Teacher ID: {teacher.TeacherId}");
+                System.Diagnostics.Debug.WriteLine($"Attendance Type: {attendanceType}");
+                
+                var currentTime = DateTime.Now;
+                
+                HttpResponseMessage response;
+                
+                if (attendanceType == "TimeIn")
+                {
+                    var request = new DailyTimeInRequest
+                    {
+                        StudentId = studentData.StudentId,
+                        Date = currentTime.Date,
+                        TimeIn = currentTime.TimeOfDay
+                    };
+                    
+                    System.Diagnostics.Debug.WriteLine($"Sending Time In request to server");
+                    var timeInUrl = _serverBaseUrl.EndsWith("/") ? $"{_serverBaseUrl}api/dailyattendance/daily-timein" : $"{_serverBaseUrl}/api/dailyattendance/daily-timein";
+                    System.Diagnostics.Debug.WriteLine($"Full URL: {timeInUrl}");
+                    response = await _httpClient.PostAsJsonAsync(timeInUrl, request);
+                }
+                else
+                {
+                    var request = new DailyTimeOutRequest
+                    {
+                        StudentId = studentData.StudentId,
+                        Date = currentTime.Date,
+                        TimeOut = currentTime.TimeOfDay
+                    };
+                    
+                    System.Diagnostics.Debug.WriteLine($"Sending Time Out request to server");
+                    var timeOutUrl = _serverBaseUrl.EndsWith("/") ? $"{_serverBaseUrl}api/dailyattendance/daily-timeout" : $"{_serverBaseUrl}/api/dailyattendance/daily-timeout";
+                    System.Diagnostics.Debug.WriteLine($"Full URL: {timeOutUrl}");
+                    response = await _httpClient.PostAsJsonAsync(timeOutUrl, request);
+                }
+                
+                System.Diagnostics.Debug.WriteLine($"Server response status: {response.StatusCode}");
+                
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseContent = await response.Content.ReadAsStringAsync();
+                    System.Diagnostics.Debug.WriteLine($"Server response content: {responseContent}");
+                    
+                    // SUCCESS: Save to MySQL server, now also save to SQLite as backup
+                    System.Diagnostics.Debug.WriteLine($"Server save successful, now saving to SQLite as backup...");
+                    var backupSuccess = await _offlineDataService.SaveOfflineAttendanceAsync(
+                        studentData.StudentId, 
+                        attendanceType, 
+                        null, // deviceId - let the service generate it
+                        true // isOnlineMode = true for backup records
+                    );
+                    
+                    if (backupSuccess)
+                    {
+                        // Mark the SQLite record as synced since it's already in MySQL
+                        await _offlineDataService.MarkAsSyncedByStudentIdAsync(studentData.StudentId);
+                        System.Diagnostics.Debug.WriteLine($"SQLite backup saved and marked as synced");
+                    }
+                    
+                    var displayType = attendanceType == "TimeIn" ? "Time In" : "Time Out";
+                    return new QRValidationResult
+                    {
+                        IsValid = true,
+                        Message = $"✓ {displayType} saved to server + backup",
+                        StudentData = studentData
+                    };
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    System.Diagnostics.Debug.WriteLine($"Server error: {errorContent}");
+                    System.Diagnostics.Debug.WriteLine($"Error status: {response.StatusCode}");
+                    System.Diagnostics.Debug.WriteLine($"Error reason: {response.ReasonPhrase}");
+                    
+                    // Check if this is a "No Time In found" error for TimeOut
+                    if (attendanceType == "TimeOut" && response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                    {
+                        try
+                        {
+                            var errorResponse = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(errorContent);
+                            if (errorResponse != null && errorResponse.ContainsKey("message"))
+                            {
+                                var errorMessage = errorResponse["message"]?.ToString();
+                                if (errorMessage != null && errorMessage.Contains("No Time In found"))
+                                {
+                                    System.Diagnostics.Debug.WriteLine("TimeOut called without TimeIn - returning error instead of fallback");
+                                    return new QRValidationResult
+                                    {
+                                        IsValid = false,
+                                        Message = "❌ No Time In found for today. Please mark Time In first.",
+                                        StudentData = studentData
+                                    };
+                                }
+                                else if (errorMessage != null && errorMessage.Contains("Time Out already marked"))
+                                {
+                                    System.Diagnostics.Debug.WriteLine("TimeOut already exists - returning error instead of fallback");
+                                    return new QRValidationResult
+                                    {
+                                        IsValid = false,
+                                        Message = "❌ Time Out already marked for today.",
+                                        StudentData = studentData
+                                    };
+                                }
+                            }
+                        }
+                        catch (Exception parseEx)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Error parsing server response: {parseEx.Message}");
+                        }
+                    }
+                    
+                    // For other server errors, fallback to SQLite
+                    System.Diagnostics.Debug.WriteLine("Server error - falling back to SQLite");
+                    return await ValidateOfflineAsync(studentData, teacher, attendanceType);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Online validation error: {ex.Message}");
+                
+                // Online failed - fallback to SQLite
+                System.Diagnostics.Debug.WriteLine("Online validation failed - falling back to SQLite");
+                return await ValidateOfflineAsync(studentData, teacher, attendanceType);
             }
         }
 
@@ -294,7 +426,8 @@ namespace ScannerMaui.Services
                 var success = await _offlineDataService.SaveOfflineAttendanceAsync(
                     studentData.StudentId, 
                     attendanceType, // Use the provided attendance type
-                    teacher.TeacherId
+                    null, // deviceId - let the service generate it
+                    false // isOnlineMode = false for offline records
                 );
                 
                 System.Diagnostics.Debug.WriteLine($"SQLite save result: {success}");
@@ -394,75 +527,65 @@ namespace ScannerMaui.Services
                     return false;
                 }
 
-                // Group records by student and date to consolidate TimeIn/TimeOut
-                var groupedRecords = unsyncedRecords
-                    .GroupBy(r => new { r.StudentId, Date = r.ScanTime.Date })
+                // Get the actual daily attendance records with their stored TimeIn/TimeOut values
+                var offlineRecords = await _offlineDataService.GetUnsyncedDailyAttendanceAsync();
+                
+                // Group by student and date, then get the latest record for each group
+                var groupedRecords = offlineRecords
+                    .GroupBy(r => new { r.StudentId, Date = r.Date })
                     .Select(group => 
                     {
-                        // Get the LATEST TimeIn and TimeOut records to avoid duplicates
-                        var timeInRecord = group.Where(r => r.AttendanceType == "TimeIn")
-                                              .OrderByDescending(r => r.ScanTime)
-                                              .FirstOrDefault();
-                        var timeOutRecord = group.Where(r => r.AttendanceType == "TimeOut")
-                                                .OrderByDescending(r => r.ScanTime)
-                                                .FirstOrDefault();
+                        // Get the LATEST record for this student/date
+                        var latestRecord = group.OrderByDescending(r => r.CreatedAt).FirstOrDefault();
                         
-                        // Determine status and remarks based on actual attendance
-                        string status = "Present";
+                        if (latestRecord == null)
+                        {
+                            return null;
+                        }
+                        
+                        // Use the actual stored TimeIn and TimeOut values from the database
+                        string timeIn = latestRecord.TimeIn;
+                        string timeOut = latestRecord.TimeOut;
+                        string status = latestRecord.Status;
                         string remarks = "";
                         
-                        if (timeInRecord != null && timeOutRecord != null)
+                        // Determine remarks based on what's available
+                        if (!string.IsNullOrEmpty(timeIn) && !string.IsNullOrEmpty(timeOut))
                         {
                             // Both TimeIn and TimeOut exist
-                            var timeIn = timeInRecord.ScanTime;
-                            var timeOut = timeOutRecord.ScanTime;
+                            var timeInTime = TimeSpan.Parse(timeIn);
+                            var timeOutTime = TimeSpan.Parse(timeOut);
                             
-                            // Check if it's a half day (less than 4 hours)
-                            var duration = timeOut - timeIn;
-                            if (duration.TotalHours < 4)
+                            // Check if it's a whole day (7:30 AM - 4:30 PM range)
+                            if (timeInTime.Hours <= 7 && timeOutTime.Hours >= 16)
                             {
-                                status = "Halfday";
-                                remarks = "Half day attendance";
+                                remarks = "Whole Day";
                             }
                             else
                             {
-                                status = "Present";
-                                remarks = "Full day attendance";
+                                remarks = "Half Day";
                             }
                         }
-                        else if (timeInRecord != null)
+                        else if (!string.IsNullOrEmpty(timeIn))
                         {
-                            // Only TimeIn exists - check if late
-                            var timeIn = timeInRecord.ScanTime;
-                            if (timeIn.Hour > 8 || (timeIn.Hour == 8 && timeIn.Minute > 0))
-                            {
-                                status = "Late";
-                                remarks = "Late arrival";
-                            }
-                            else
-                            {
-                                status = "Present";
-                                remarks = "On time";
-                            }
+                            remarks = "Time In only";
                         }
-                        else if (timeOutRecord != null)
+                        else if (!string.IsNullOrEmpty(timeOut))
                         {
-                            // Only TimeOut exists (unusual case)
-                            status = "Present";
-                            remarks = "Time out only";
+                            remarks = "Time Out only";
                         }
                         
                         return new
                         {
                             StudentId = group.Key.StudentId,
                             Date = group.Key.Date,
-                            TimeIn = timeInRecord?.ScanTime.ToString("HH:mm"),
-                            TimeOut = timeOutRecord?.ScanTime.ToString("HH:mm"),
+                            TimeIn = timeIn,
+                            TimeOut = timeOut,
                             Status = status,
                             Remarks = remarks,
-                            DeviceId = group.First().DeviceId
+                            DeviceId = latestRecord.DeviceId
                         };
-                }).ToList();
+                }).Where(r => r != null).ToList();
 
                 var syncRequest = new
                 {
@@ -472,6 +595,12 @@ namespace ScannerMaui.Services
 
                 System.Diagnostics.Debug.WriteLine($"Sending {groupedRecords.Count} consolidated records to server for sync");
                 
+                // Debug: Log each record being sent
+                foreach (var record in groupedRecords)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Sync Record - StudentId: {record.StudentId}, Date: {record.Date}, TimeIn: {record.TimeIn}, TimeOut: {record.TimeOut}, Status: {record.Status}, Remarks: {record.Remarks}");
+                }
+                
                 var response = await _httpClient.PostAsJsonAsync($"{_serverBaseUrl}api/dailyattendance/sync-offline-data", syncRequest);
                 
                 if (response.IsSuccessStatusCode)
@@ -479,7 +608,7 @@ namespace ScannerMaui.Services
                     var result = await response.Content.ReadFromJsonAsync<dynamic>();
                     System.Diagnostics.Debug.WriteLine($"Sync successful: {result}");
                     
-                    // Mark all records as synced
+                    // Mark all records as synced first, then delete them
                     System.Diagnostics.Debug.WriteLine($"Marking {unsyncedRecords.Count} records as synced...");
                     foreach (var record in unsyncedRecords)
                     {
@@ -497,6 +626,11 @@ namespace ScannerMaui.Services
                     }
                     
                     System.Diagnostics.Debug.WriteLine($"Completed marking {unsyncedRecords.Count} records as synced");
+                    
+                    // Now delete all synced records to clean up the database
+                    System.Diagnostics.Debug.WriteLine("Deleting synced records to clean up database...");
+                    var deleteResult = await _offlineDataService.DeleteSyncedRecordsAsync();
+                    System.Diagnostics.Debug.WriteLine($"Delete synced records result: {deleteResult}");
                     return true;
                 }
                 else

@@ -426,6 +426,13 @@ namespace ServerAtrrak.Controllers
 
                 _logger.LogInformation("Syncing offline data for teacher: {TeacherId}, Records count: {Count}", 
                     request.TeacherId, request.AttendanceRecords.Count);
+                
+                // Log each record being synced
+                foreach (var record in request.AttendanceRecords)
+                {
+                    _logger.LogInformation("Syncing record - StudentId: {StudentId}, Date: {Date}, TimeIn: {TimeIn}, TimeOut: {TimeOut}, Status: {Status}, Remarks: {Remarks}", 
+                        record.StudentId, record.Date, record.TimeIn, record.TimeOut, record.Status, record.Remarks);
+                }
 
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
@@ -460,28 +467,29 @@ namespace ServerAtrrak.Controllers
                                 var existingTimeOut = reader.IsDBNull("TimeOut") ? null : reader.GetString("TimeOut");
                                 reader.Close();
                                 
-                                // Only update if we're not trying to overwrite existing values with the same values
+                                // Update the record with new values, but don't overwrite existing values with empty ones
                                 bool shouldUpdate = true;
                                 
-                                if (!string.IsNullOrEmpty(record.TimeIn) && !string.IsNullOrEmpty(existingTimeIn))
+                                // Only skip if we're trying to overwrite existing values with the same values
+                                if (!string.IsNullOrEmpty(record.TimeIn) && !string.IsNullOrEmpty(existingTimeIn) && record.TimeIn == existingTimeIn)
                                 {
-                                    _logger.LogWarning("TimeIn already exists for student {StudentId} on {Date}. Skipping duplicate TimeIn.", record.StudentId, record.Date);
+                                    _logger.LogInformation("TimeIn already exists with same value for student {StudentId} on {Date}. Skipping duplicate TimeIn.", record.StudentId, record.Date);
                                     shouldUpdate = false;
                                 }
                                 
-                                if (!string.IsNullOrEmpty(record.TimeOut) && !string.IsNullOrEmpty(existingTimeOut))
+                                if (!string.IsNullOrEmpty(record.TimeOut) && !string.IsNullOrEmpty(existingTimeOut) && record.TimeOut == existingTimeOut)
                                 {
-                                    _logger.LogWarning("TimeOut already exists for student {StudentId} on {Date}. Skipping duplicate TimeOut.", record.StudentId, record.Date);
+                                    _logger.LogInformation("TimeOut already exists with same value for student {StudentId} on {Date}. Skipping duplicate TimeOut.", record.StudentId, record.Date);
                                     shouldUpdate = false;
                                 }
                                 
                                 if (shouldUpdate)
                                 {
-                                    // Update existing record
+                                    // Update existing record - only update fields that have values
                                     var updateQuery = @"
                                         UPDATE daily_attendance 
-                                        SET TimeIn = COALESCE(@TimeIn, TimeIn),
-                                            TimeOut = COALESCE(@TimeOut, TimeOut),
+                                        SET TimeIn = CASE WHEN @TimeIn IS NOT NULL AND @TimeIn != '' THEN @TimeIn ELSE TimeIn END,
+                                            TimeOut = CASE WHEN @TimeOut IS NOT NULL AND @TimeOut != '' THEN @TimeOut ELSE TimeOut END,
                                             Status = @Status,
                                             Remarks = @Remarks,
                                             UpdatedAt = @UpdatedAt

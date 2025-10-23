@@ -239,6 +239,10 @@
                     <button class="btn btn-sm btn-dark" @onclick="ClearSyncedRecords">Clear Synced Records</button>
                     <button class="btn btn-sm btn-warning" @onclick="ForceMarkAllAsSynced">Force Mark All Synced</button>
                     <button class="btn btn-sm btn-danger" @onclick="ForceRefreshCount">Force Refresh Count</button>
+                    <button class="btn btn-sm btn-danger" @onclick="ClearAllOfflineData">🗑️ Clear All Data</button>
+                    <button class="btn btn-sm btn-warning" @onclick="DeleteDatabaseFile">🗑️ Delete DB File</button>
+                    <button class="btn btn-sm btn-info" @onclick="CleanupDuplicates">🧹 Clean Duplicates</button>
+                    <button class="btn btn-sm btn-danger" @onclick="ForceClearAllData">💥 Force Clear All</button>
                 </div>
             </div>
         </div>
@@ -1013,29 +1017,18 @@
     {
         if (!string.IsNullOrEmpty(qrCode) && !string.IsNullOrEmpty(attendanceType))
         {
-            // Check if scanning is allowed at current time
-            if (!IsScanningAllowed())
-            {
-                var statusMessage = GetScanningStatusMessage();
-                lastScanResult = new AttendanceRecord
-                {
-                    StudentId = qrCode,
-                    StudentName = "Scanning Restricted",
-                    Timestamp = DateTime.Now,
-                    IsValid = false,
-                    Status = "Restricted",
-                    AttendanceType = "Unknown",
-                    Message = statusMessage
-                };
-                message = statusMessage;
-                isSuccess = false;
-                isProcessing = false;
-                isScanning = false;
-                StateHasChanged();
-                return;
-            }
+            // The QR code has already been processed by NativeQRScannerPage
+            // We just need to update the UI and reload data
+            System.Diagnostics.Debug.WriteLine($"QR Code scanned event received: {qrCode}");
             
-            await ProcessStudentQRCode(qrCode);
+            // Reload attendance list to get the latest data
+            await LoadTodayAttendance();
+            
+            // Reload offline record count
+            await LoadOfflineRecordCount();
+            
+            // Update UI
+            StateHasChanged();
         }
     }
 
@@ -2163,6 +2156,169 @@
         
         StateHasChanged();
     }
+
+    // Clear all offline data
+    private async Task ClearAllOfflineData()
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("=== CLEARING ALL OFFLINE DATA ===");
+            
+            if (OfflineDataService == null)
+            {
+                System.Diagnostics.Debug.WriteLine("ERROR: OfflineDataService is null!");
+                message = "❌ Error: OfflineDataService not available";
+                isSuccess = false;
+                return;
+            }
+            
+            System.Diagnostics.Debug.WriteLine("Clearing all offline data...");
+            var success = await OfflineDataService.ClearAllOfflineDataAsync();
+            
+            if (success)
+            {
+                System.Diagnostics.Debug.WriteLine("Successfully cleared all offline data");
+                message = "✅ All offline data cleared successfully!";
+                isSuccess = true;
+                
+                // Refresh the count
+                await LoadOfflineRecordCount();
+                System.Diagnostics.Debug.WriteLine($"Offline record count after clearing: {offlineRecordCount}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("Failed to clear offline data");
+                message = "❌ Failed to clear offline data";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error clearing offline data: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            message = $"❌ Error clearing data: {ex.Message}";
+            isSuccess = false;
+        }
+        
+        StateHasChanged();
+    }
+
+    // Delete the entire database file
+    private async Task DeleteDatabaseFile()
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("=== DELETING DATABASE FILE ===");
+            
+            if (OfflineDataService == null)
+            {
+                System.Diagnostics.Debug.WriteLine("ERROR: OfflineDataService is null!");
+                message = "❌ Error: OfflineDataService not available";
+                isSuccess = false;
+                return;
+            }
+            
+            System.Diagnostics.Debug.WriteLine("Deleting database file...");
+            var success = OfflineDataService.DeleteDatabaseFile();
+            
+            if (success)
+            {
+                System.Diagnostics.Debug.WriteLine("Successfully deleted database file");
+                message = "✅ Database file deleted successfully!";
+                isSuccess = true;
+                
+                // Refresh the count
+                await LoadOfflineRecordCount();
+                System.Diagnostics.Debug.WriteLine($"Offline record count after deletion: {offlineRecordCount}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("Failed to delete database file or file didn't exist");
+                message = "⚠️ Database file not found or already deleted";
+                isSuccess = true; // This is not really an error
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error deleting database file: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            message = $"❌ Error deleting database file: {ex.Message}";
+            isSuccess = false;
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task CleanupDuplicates()
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("=== CLEANING UP DUPLICATE RECORDS ===");
+            
+            var success = await OfflineDataService.CleanupDuplicateRecords();
+            
+            if (success)
+            {
+                System.Diagnostics.Debug.WriteLine("Successfully cleaned up duplicate records");
+                message = "✅ Duplicate records cleaned up successfully!";
+                isSuccess = true;
+                
+                // Refresh the offline record count
+                await LoadOfflineRecordCount();
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("Failed to clean up duplicate records");
+                message = "❌ Failed to clean up duplicate records";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error cleaning up duplicates: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            message = $"❌ Error cleaning up duplicates: {ex.Message}";
+            isSuccess = false;
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task ForceClearAllData()
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("=== FORCE CLEARING ALL ATTENDANCE DATA ===");
+            
+            var success = await OfflineDataService.ForceClearAllAttendanceData();
+            
+            if (success)
+            {
+                System.Diagnostics.Debug.WriteLine("Successfully force cleared all attendance data");
+                message = "✅ All attendance data force cleared successfully!";
+                isSuccess = true;
+                
+                // Refresh the offline record count
+                await LoadOfflineRecordCount();
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("Failed to force clear all attendance data");
+                message = "❌ Failed to force clear all attendance data";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error force clearing all data: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            message = $"❌ Error force clearing all data: {ex.Message}";
+            isSuccess = false;
+        }
+        
+        StateHasChanged();
+    }
+
 }
 
 <!-- Pending Students Modal -->
