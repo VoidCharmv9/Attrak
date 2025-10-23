@@ -69,22 +69,8 @@ namespace ServerAtrrak.Controllers
         {
             try
             {
-                _logger.LogInformation("TimeIn request received for student: {StudentId}, Date: {Date}, TimeIn: {TimeIn}", 
-                    request?.StudentId, request?.Date, request?.TimeIn);
-                
-                if (request == null)
+                if (request == null || !ModelState.IsValid)
                 {
-                    _logger.LogWarning("Request is null");
-                    return BadRequest(new DailyTimeInResponse
-                    {
-                        Success = false,
-                        Message = "Request is null"
-                    });
-                }
-                
-                if (!ModelState.IsValid)
-                {
-                    _logger.LogWarning("Invalid model state: {ModelState}", ModelState);
                     return BadRequest(new DailyTimeInResponse
                     {
                         Success = false,
@@ -94,31 +80,6 @@ namespace ServerAtrrak.Controllers
 
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
-                _logger.LogInformation("Database connection opened successfully");
-                
-                // Validate request data
-                if (string.IsNullOrEmpty(request.StudentId))
-                {
-                    _logger.LogWarning("StudentId is null or empty");
-                    return BadRequest(new DailyTimeInResponse
-                    {
-                        Success = false,
-                        Message = "StudentId is required"
-                    });
-                }
-                
-                if (request.TimeIn == default(TimeSpan))
-                {
-                    _logger.LogWarning("TimeIn is not provided or invalid");
-                    return BadRequest(new DailyTimeInResponse
-                    {
-                        Success = false,
-                        Message = "TimeIn is required"
-                    });
-                }
-                
-                _logger.LogInformation("Request validation passed - StudentId: {StudentId}, Date: {Date}, TimeIn: {TimeIn}", 
-                    request.StudentId, request.Date, request.TimeIn);
 
                 // First check if there's already a record for this student on any recent date (within last 3 days)
                 var recentCheckQuery = "SELECT AttendanceId, TimeIn, TimeOut, Date FROM daily_attendance WHERE StudentId = @StudentId AND Date >= @RecentDate ORDER BY Date DESC, CreatedAt DESC LIMIT 1";
@@ -137,9 +98,6 @@ namespace ServerAtrrak.Controllers
                     // If there's already a record for this student on a different date, use that date
                     if (existingDate.Date != request.Date.Date)
                     {
-                        _logger.LogInformation("Found existing record for student {StudentId} on date {ExistingDate}, but request is for {RequestDate}. Using existing date.", 
-                            request.StudentId, existingDate.Date, request.Date.Date);
-                        
                         // Update the request date to match the existing record
                         request.Date = existingDate.Date;
                     }
@@ -185,7 +143,6 @@ namespace ServerAtrrak.Controllers
                     deleteCommand.Parameters.AddWithValue("@Date", request.Date.Date);
                     deleteCommand.Parameters.AddWithValue("@KeepId", existingId);
                     await deleteCommand.ExecuteNonQueryAsync();
-                    _logger.LogInformation("Removed duplicate records for student {StudentId}", request.StudentId);
                 }
 
                 // Determine status based on time
@@ -218,15 +175,13 @@ namespace ServerAtrrak.Controllers
                         WHERE AttendanceId = @AttendanceId";
 
                     using var updateCommand = new MySqlCommand(updateQuery, connection);
-                    updateCommand.Parameters.AddWithValue("@TimeIn", request.TimeIn.ToString(@"hh\:mm"));
+                    updateCommand.Parameters.AddWithValue("@TimeIn", request.TimeIn.ToString(@"hh\:mm\:ss"));
                     updateCommand.Parameters.AddWithValue("@Status", status);
                     updateCommand.Parameters.AddWithValue("@Remarks", isLate ? "Late arrival" : "");
                     updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
                     updateCommand.Parameters.AddWithValue("@AttendanceId", existingId);
 
-                    _logger.LogInformation("Executing update query for AttendanceId: {AttendanceId}", existingId);
                     await updateCommand.ExecuteNonQueryAsync();
-                    _logger.LogInformation("Update completed successfully");
                 }
                 else
                 {
@@ -239,24 +194,20 @@ namespace ServerAtrrak.Controllers
                     insertCommand.Parameters.AddWithValue("@AttendanceId", Guid.NewGuid().ToString());
                     insertCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
                     insertCommand.Parameters.AddWithValue("@Date", request.Date.Date);
-                    insertCommand.Parameters.AddWithValue("@TimeIn", request.TimeIn.ToString(@"hh\:mm"));
+                    insertCommand.Parameters.AddWithValue("@TimeIn", request.TimeIn.ToString(@"hh\:mm\:ss"));
                     insertCommand.Parameters.AddWithValue("@Status", status);
                     insertCommand.Parameters.AddWithValue("@Remarks", isLate ? "Late arrival" : "");
                     insertCommand.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
 
-                    _logger.LogInformation("Executing insert query for StudentId: {StudentId}", request.StudentId);
                     await insertCommand.ExecuteNonQueryAsync();
-                    _logger.LogInformation("Insert completed successfully");
                 }
-
-                _logger.LogInformation("Daily attendance marked for student: {StudentId}, Status: {Status}", request.StudentId, status);
 
                 return Ok(new DailyTimeInResponse
                 {
                     Success = true,
                     Message = "Attendance marked successfully",
                     Status = status,
-                    TimeIn = request.TimeIn.ToString(@"hh\:mm")
+                    TimeIn = request.TimeIn.ToString(@"hh\:mm\:ss")
                 });
             }
             catch (Exception ex)
