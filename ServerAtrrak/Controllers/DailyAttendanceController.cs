@@ -81,33 +81,7 @@ namespace ServerAtrrak.Controllers
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
 
-                // First check if there's already a record for this student on any recent date (within last 3 days)
-                var recentCheckQuery = "SELECT AttendanceId, TimeIn, TimeOut, Date FROM daily_attendance WHERE StudentId = @StudentId AND Date >= @RecentDate ORDER BY Date DESC, CreatedAt DESC LIMIT 1";
-                using var recentCheckCommand = new MySqlCommand(recentCheckQuery, connection);
-                recentCheckCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
-                recentCheckCommand.Parameters.AddWithValue("@RecentDate", DateTime.Today.AddDays(-3));
-                
-                using var recentReader = await recentCheckCommand.ExecuteReaderAsync();
-                if (await recentReader.ReadAsync())
-                {
-                    var existingDate = recentReader.GetDateTime("Date");
-                    var recentTimeIn = recentReader.IsDBNull("TimeIn") ? "" : recentReader.GetString("TimeIn");
-                    var recentTimeOut = recentReader.IsDBNull("TimeOut") ? "" : ((TimeSpan)recentReader.GetValue("TimeOut")).ToString(@"hh\:mm\:ss");
-                    recentReader.Close();
-                    
-                    // If there's already a record for this student on a different date, use that date
-                    if (existingDate.Date != request.Date.Date)
-                    {
-                        // Update the request date to match the existing record
-                        request.Date = existingDate.Date;
-                    }
-                }
-                else
-                {
-                    recentReader.Close();
-                }
-                
-                // Now check if already marked for the correct date
+                // Check if there's already a record for this student on the SAME date
                 var checkQuery = "SELECT AttendanceId, TimeIn, TimeOut, Date FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date ORDER BY CreatedAt DESC";
                 using var checkCommand = new MySqlCommand(checkQuery, connection);
                 checkCommand.Parameters.AddWithValue("@StudentId", request.StudentId);
