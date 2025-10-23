@@ -136,20 +136,31 @@ namespace ServerAtrrak.Services
                 }
 
                 // Debug: Log section information
-                _logger.LogInformation("SECTION VALIDATION DEBUG:");
+                _logger.LogInformation("=== SECTION VALIDATION DEBUG ===");
                 _logger.LogInformation("Teacher Section: '{TeacherSection}' (Length: {TeacherSectionLength})", 
                     teacher.Section, teacher.Section?.Length ?? 0);
                 _logger.LogInformation("Student Section: '{StudentSection}' (Length: {StudentSectionLength})", 
                     studentInfo.Section, studentInfo.Section?.Length ?? 0);
                 _logger.LogInformation("Teacher Section IsNullOrEmpty: {TeacherSectionEmpty}", string.IsNullOrEmpty(teacher.Section));
                 _logger.LogInformation("Student Section IsNullOrEmpty: {StudentSectionEmpty}", string.IsNullOrEmpty(studentInfo.Section));
+                _logger.LogInformation("Section Comparison: '{TeacherSection}' == '{StudentSection}' = {AreEqual}", 
+                    teacher.Section, studentInfo.Section, teacher.Section == studentInfo.Section);
 
                 // Validate section match
-                if (!string.IsNullOrEmpty(teacher.Section) && 
-                    !string.IsNullOrEmpty(studentInfo.Section) && 
-                    teacher.Section != studentInfo.Section)
+                _logger.LogInformation("=== CHECKING SECTION VALIDATION CONDITIONS ===");
+                _logger.LogInformation("Condition 1 - Teacher Section Not Empty: {TeacherSectionNotEmpty}", !string.IsNullOrEmpty(teacher.Section));
+                _logger.LogInformation("Condition 2 - Student Section Not Empty: {StudentSectionNotEmpty}", !string.IsNullOrEmpty(studentInfo.Section));
+                _logger.LogInformation("Condition 3 - Sections Not Equal: {SectionsNotEqual}", teacher.Section != studentInfo.Section);
+                
+                bool shouldValidateSection = !string.IsNullOrEmpty(teacher.Section) && 
+                                           !string.IsNullOrEmpty(studentInfo.Section) && 
+                                           teacher.Section != studentInfo.Section;
+                
+                _logger.LogInformation("Should Validate Section (All conditions met): {ShouldValidateSection}", shouldValidateSection);
+                
+                if (shouldValidateSection)
                 {
-                    _logger.LogWarning("SECTION MISMATCH: Teacher='{TeacherSection}', Student='{StudentSection}'", 
+                    _logger.LogWarning("🚫 SECTION MISMATCH DETECTED: Teacher='{TeacherSection}', Student='{StudentSection}'", 
                         teacher.Section, studentInfo.Section);
                     return new ServerQRValidationResult
                     {
@@ -161,7 +172,7 @@ namespace ServerAtrrak.Services
                 }
                 else
                 {
-                    _logger.LogInformation("SECTION VALIDATION PASSED: Teacher='{TeacherSection}', Student='{StudentSection}'", 
+                    _logger.LogInformation("✅ SECTION VALIDATION PASSED: Teacher='{TeacherSection}', Student='{StudentSection}'", 
                         teacher.Section, studentInfo.Section);
                 }
 
