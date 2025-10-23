@@ -485,6 +485,41 @@ namespace ServerAtrrak.Controllers
                                 
                                 if (shouldUpdate)
                                 {
+                                    // Determine the correct remarks based on TimeIn and TimeOut availability
+                                    string finalRemarks = "";
+                                    string finalStatus = "Present";
+                                    
+                                    // Check what we'll have after the update
+                                    string finalTimeIn = !string.IsNullOrEmpty(record.TimeIn) ? record.TimeIn : existingTimeIn;
+                                    string finalTimeOut = !string.IsNullOrEmpty(record.TimeOut) ? record.TimeOut : existingTimeOut;
+                                    
+                                    if (!string.IsNullOrEmpty(finalTimeIn) && !string.IsNullOrEmpty(finalTimeOut))
+                                    {
+                                        // Both TimeIn and TimeOut exist - check if it's whole day or half day
+                                        var timeInTime = TimeSpan.Parse(finalTimeIn);
+                                        var timeOutTime = TimeSpan.Parse(finalTimeOut);
+                                        
+                                        // Check if it's a whole day (7:30 AM - 4:30 PM range)
+                                        if (timeInTime.Hours <= 7 && timeOutTime.Hours >= 16)
+                                        {
+                                            finalRemarks = "Whole Day";
+                                        }
+                                        else
+                                        {
+                                            finalRemarks = "Half Day";
+                                        }
+                                    }
+                                    else if (!string.IsNullOrEmpty(finalTimeIn))
+                                    {
+                                        // Only TimeIn exists
+                                        finalRemarks = "Half Day";
+                                    }
+                                    else if (!string.IsNullOrEmpty(finalTimeOut))
+                                    {
+                                        // Only TimeOut exists
+                                        finalRemarks = "Half Day";
+                                    }
+                                    
                                     // Update existing record - only update fields that have values
                                     var updateQuery = @"
                                         UPDATE daily_attendance 
@@ -500,11 +535,14 @@ namespace ServerAtrrak.Controllers
                                     updateCommand.Parameters.AddWithValue("@Date", record.Date.Date);
                                     updateCommand.Parameters.AddWithValue("@TimeIn", string.IsNullOrEmpty(record.TimeIn) ? (object)DBNull.Value : record.TimeIn);
                                     updateCommand.Parameters.AddWithValue("@TimeOut", string.IsNullOrEmpty(record.TimeOut) ? (object)DBNull.Value : record.TimeOut);
-                                    updateCommand.Parameters.AddWithValue("@Status", record.Status);
-                                    updateCommand.Parameters.AddWithValue("@Remarks", record.Remarks ?? "");
+                                    updateCommand.Parameters.AddWithValue("@Status", finalStatus);
+                                    updateCommand.Parameters.AddWithValue("@Remarks", finalRemarks);
                                     updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
 
                                     await updateCommand.ExecuteNonQueryAsync();
+                                    
+                                    _logger.LogInformation("Updated record for student {StudentId} with remarks: {Remarks}", 
+                                        record.StudentId, finalRemarks);
                                 }
                             }
                             else
@@ -514,6 +552,37 @@ namespace ServerAtrrak.Controllers
                         }
                         else
                         {
+                            // Determine remarks for new record
+                            string newRemarks = "";
+                            string newStatus = "Present";
+                            
+                            if (!string.IsNullOrEmpty(record.TimeIn) && !string.IsNullOrEmpty(record.TimeOut))
+                            {
+                                // Both TimeIn and TimeOut exist - check if it's whole day or half day
+                                var timeInTime = TimeSpan.Parse(record.TimeIn);
+                                var timeOutTime = TimeSpan.Parse(record.TimeOut);
+                                
+                                // Check if it's a whole day (7:30 AM - 4:30 PM range)
+                                if (timeInTime.Hours <= 7 && timeOutTime.Hours >= 16)
+                                {
+                                    newRemarks = "Whole Day";
+                                }
+                                else
+                                {
+                                    newRemarks = "Half Day";
+                                }
+                            }
+                            else if (!string.IsNullOrEmpty(record.TimeIn))
+                            {
+                                // Only TimeIn exists
+                                newRemarks = "Half Day";
+                            }
+                            else if (!string.IsNullOrEmpty(record.TimeOut))
+                            {
+                                // Only TimeOut exists
+                                newRemarks = "Half Day";
+                            }
+                            
                             // Insert new record
                             var insertQuery = @"
                                 INSERT INTO daily_attendance (AttendanceId, StudentId, Date, TimeIn, TimeOut, Status, Remarks, CreatedAt, UpdatedAt)
@@ -525,12 +594,15 @@ namespace ServerAtrrak.Controllers
                             insertCommand.Parameters.AddWithValue("@Date", record.Date.Date);
                             insertCommand.Parameters.AddWithValue("@TimeIn", string.IsNullOrEmpty(record.TimeIn) ? (object)DBNull.Value : record.TimeIn);
                             insertCommand.Parameters.AddWithValue("@TimeOut", string.IsNullOrEmpty(record.TimeOut) ? (object)DBNull.Value : record.TimeOut);
-                            insertCommand.Parameters.AddWithValue("@Status", record.Status);
-                            insertCommand.Parameters.AddWithValue("@Remarks", record.Remarks ?? "");
+                            insertCommand.Parameters.AddWithValue("@Status", newStatus);
+                            insertCommand.Parameters.AddWithValue("@Remarks", newRemarks);
                             insertCommand.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
                             insertCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
 
                             await insertCommand.ExecuteNonQueryAsync();
+                            
+                            _logger.LogInformation("Created new record for student {StudentId} with remarks: {Remarks}", 
+                                record.StudentId, newRemarks);
                         }
 
                         syncedCount++;

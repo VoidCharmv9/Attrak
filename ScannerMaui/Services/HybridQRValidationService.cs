@@ -568,11 +568,11 @@ namespace ScannerMaui.Services
                         }
                         else if (!string.IsNullOrEmpty(timeIn))
                         {
-                            remarks = "Time In only";
+                            remarks = "Half Day";
                         }
                         else if (!string.IsNullOrEmpty(timeOut))
                         {
-                            remarks = "Time Out only";
+                            remarks = "Half Day";
                         }
                         
                         return new
