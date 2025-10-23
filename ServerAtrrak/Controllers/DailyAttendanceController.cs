@@ -447,26 +447,62 @@ namespace ServerAtrrak.Controllers
 
                         if (existingCount > 0)
                         {
-                            // Update existing record
-                            var updateQuery = @"
-                                UPDATE daily_attendance 
-                                SET TimeIn = COALESCE(@TimeIn, TimeIn),
-                                    TimeOut = COALESCE(@TimeOut, TimeOut),
-                                    Status = @Status,
-                                    Remarks = @Remarks,
-                                    UpdatedAt = @UpdatedAt
-                                WHERE StudentId = @StudentId AND Date = @Date";
+                            // Check if we're trying to update with duplicate TimeIn or TimeOut
+                            var checkExistingQuery = "SELECT TimeIn, TimeOut FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date";
+                            using var checkCommand = new MySqlCommand(checkExistingQuery, connection);
+                            checkCommand.Parameters.AddWithValue("@StudentId", record.StudentId);
+                            checkCommand.Parameters.AddWithValue("@Date", record.Date.Date);
+                            
+                            using var reader = await checkCommand.ExecuteReaderAsync();
+                            if (await reader.ReadAsync())
+                            {
+                                var existingTimeIn = reader.IsDBNull("TimeIn") ? null : reader.GetString("TimeIn");
+                                var existingTimeOut = reader.IsDBNull("TimeOut") ? null : reader.GetString("TimeOut");
+                                reader.Close();
+                                
+                                // Only update if we're not trying to overwrite existing values with the same values
+                                bool shouldUpdate = true;
+                                
+                                if (!string.IsNullOrEmpty(record.TimeIn) && !string.IsNullOrEmpty(existingTimeIn))
+                                {
+                                    _logger.LogWarning("TimeIn already exists for student {StudentId} on {Date}. Skipping duplicate TimeIn.", record.StudentId, record.Date);
+                                    shouldUpdate = false;
+                                }
+                                
+                                if (!string.IsNullOrEmpty(record.TimeOut) && !string.IsNullOrEmpty(existingTimeOut))
+                                {
+                                    _logger.LogWarning("TimeOut already exists for student {StudentId} on {Date}. Skipping duplicate TimeOut.", record.StudentId, record.Date);
+                                    shouldUpdate = false;
+                                }
+                                
+                                if (shouldUpdate)
+                                {
+                                    // Update existing record
+                                    var updateQuery = @"
+                                        UPDATE daily_attendance 
+                                        SET TimeIn = COALESCE(@TimeIn, TimeIn),
+                                            TimeOut = COALESCE(@TimeOut, TimeOut),
+                                            Status = @Status,
+                                            Remarks = @Remarks,
+                                            UpdatedAt = @UpdatedAt
+                                        WHERE StudentId = @StudentId AND Date = @Date";
 
-                            using var updateCommand = new MySqlCommand(updateQuery, connection);
-                            updateCommand.Parameters.AddWithValue("@StudentId", record.StudentId);
-                            updateCommand.Parameters.AddWithValue("@Date", record.Date.Date);
-                            updateCommand.Parameters.AddWithValue("@TimeIn", string.IsNullOrEmpty(record.TimeIn) ? (object)DBNull.Value : record.TimeIn);
-                            updateCommand.Parameters.AddWithValue("@TimeOut", string.IsNullOrEmpty(record.TimeOut) ? (object)DBNull.Value : record.TimeOut);
-                            updateCommand.Parameters.AddWithValue("@Status", record.Status);
-                            updateCommand.Parameters.AddWithValue("@Remarks", record.Remarks ?? "");
-                            updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
+                                    using var updateCommand = new MySqlCommand(updateQuery, connection);
+                                    updateCommand.Parameters.AddWithValue("@StudentId", record.StudentId);
+                                    updateCommand.Parameters.AddWithValue("@Date", record.Date.Date);
+                                    updateCommand.Parameters.AddWithValue("@TimeIn", string.IsNullOrEmpty(record.TimeIn) ? (object)DBNull.Value : record.TimeIn);
+                                    updateCommand.Parameters.AddWithValue("@TimeOut", string.IsNullOrEmpty(record.TimeOut) ? (object)DBNull.Value : record.TimeOut);
+                                    updateCommand.Parameters.AddWithValue("@Status", record.Status);
+                                    updateCommand.Parameters.AddWithValue("@Remarks", record.Remarks ?? "");
+                                    updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
 
-                            await updateCommand.ExecuteNonQueryAsync();
+                                    await updateCommand.ExecuteNonQueryAsync();
+                                }
+                            }
+                            else
+                            {
+                                reader.Close();
+                            }
                         }
                         else
                         {
