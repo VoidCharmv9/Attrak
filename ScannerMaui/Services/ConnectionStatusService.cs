@@ -1,4 +1,5 @@
 using System.Net.Http;
+using Microsoft.Maui.Networking;
 
 namespace ScannerMaui.Services
 {
@@ -30,21 +31,25 @@ namespace ScannerMaui.Services
 
             try
             {
-                // Try to ping the server
-                var response = await _httpClient.GetAsync($"{_serverBaseUrl}/api/health");
+                // Simple check: if we have internet access, assume we're online
+                var hasInternet = Connectivity.NetworkAccess == NetworkAccess.Internet;
                 var wasOnline = _isOnline;
-                _isOnline = response.IsSuccessStatusCode;
+                _isOnline = hasInternet;
+
+                System.Diagnostics.Debug.WriteLine($"ConnectionStatusService: Internet connectivity: {hasInternet}");
 
                 // Notify if status changed
                 if (wasOnline != _isOnline)
                 {
+                    System.Diagnostics.Debug.WriteLine($"Connection status changed: {(_isOnline ? "Online" : "Offline")}");
                     ConnectionStatusChanged?.Invoke(this, _isOnline);
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"Connection check error: {ex.Message}");
                 var wasOnline = _isOnline;
-                _isOnline = false;
+                _isOnline = true; // Assume online if we can't determine
 
                 // Notify if status changed
                 if (wasOnline != _isOnline)

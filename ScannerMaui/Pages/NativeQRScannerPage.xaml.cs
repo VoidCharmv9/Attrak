@@ -11,6 +11,9 @@ namespace ScannerMaui.Pages
         private bool _isTorchOn = false;
         private string _currentAttendanceType = string.Empty;
         private HybridQRValidationService? _qrValidationService;
+        private string _lastScannedCode = string.Empty;
+        private DateTime _lastScanTime = DateTime.MinValue;
+        private bool _isProcessing = false;
 
         public event EventHandler<string>? QRCodeScanned;
         public event EventHandler<string>? AttendanceTypeSelected;
@@ -35,6 +38,26 @@ namespace ScannerMaui.Pages
                     var result = e.Results.FirstOrDefault();
                     if (result != null && !string.IsNullOrEmpty(result.Value))
                     {
+                        // Prevent duplicate processing of the same QR code
+                        var currentTime = DateTime.Now;
+                        if (result.Value == _lastScannedCode && 
+                            (currentTime - _lastScanTime).TotalSeconds < 3)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Duplicate QR code detected, ignoring: {result.Value}");
+                            return;
+                        }
+                        
+                        // Prevent multiple simultaneous processing
+                        if (_isProcessing)
+                        {
+                            System.Diagnostics.Debug.WriteLine("Already processing a QR code, ignoring new scan");
+                            return;
+                        }
+                        
+                        _lastScannedCode = result.Value;
+                        _lastScanTime = currentTime;
+                        _isProcessing = true;
+                        
                         System.Diagnostics.Debug.WriteLine($"QR Code detected: {result.Value}");
                         
                         // Check if scanning is allowed at current time
@@ -64,6 +87,7 @@ namespace ScannerMaui.Pages
                                     resultLabel.Text = "";
                                     statusLabel.Text = "Ready to scan next QR code";
                                     statusLabel.TextColor = Colors.Green;
+                                    _isProcessing = false;
                                 });
                             });
                             
@@ -111,6 +135,7 @@ namespace ScannerMaui.Pages
                                                         resultLabel.Text = "";
                                                         statusLabel.Text = "Ready to scan next QR code";
                                                         statusLabel.TextColor = Colors.Green;
+                                                        _isProcessing = false;
                                                     });
                                                 });
                                             }
@@ -136,6 +161,7 @@ namespace ScannerMaui.Pages
                                                         resultLabel.Text = "";
                                                         statusLabel.Text = "Ready to scan next QR code";
                                                         statusLabel.TextColor = Colors.Green;
+                                                        _isProcessing = false;
                                                     });
                                                 });
                                             }
@@ -158,6 +184,15 @@ namespace ScannerMaui.Pages
                                         
                                         statusLabel.Text = "Validation error - Please try again";
                                         statusLabel.TextColor = Colors.Red;
+                                        
+                                        // Reset processing flag after error
+                                        Task.Delay(3000).ContinueWith(_ => 
+                                        {
+                                            MainThread.BeginInvokeOnMainThread(() =>
+                                            {
+                                                _isProcessing = false;
+                                            });
+                                        });
                                     });
                                 }
                             });
@@ -193,6 +228,7 @@ namespace ScannerMaui.Pages
                                             resultLabel.Text = "";
                                             statusLabel.Text = "Ready to scan next QR code";
                                             statusLabel.TextColor = Colors.Green;
+                                            _isProcessing = false;
                                         });
                                     });
                                 }
@@ -281,33 +317,10 @@ namespace ScannerMaui.Pages
                 {
                     // Use HapticFeedback for mobile devices
                     HapticFeedback.Default.Perform(HapticFeedbackType.Click);
-                    
-                    // Also play a system sound if possible
-                    try
-                    {
-                        // For Android, we can use MediaPlayer or AudioManager
-                        if (DeviceInfo.Platform == DevicePlatform.Android)
-                        {
-                            // Use Android's built-in notification sound
-                            await PlayAndroidBeepSound();
-                        }
-                        else if (DeviceInfo.Platform == DevicePlatform.iOS)
-                        {
-                            // Use iOS system sound
-                            await PlayiOSBeepSound();
-                        }
-                    }
-                    catch (Exception soundEx)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Error playing system sound: {soundEx.Message}");
-                        // Fallback to vibration only
-                    }
                 }
-                else
-                {
-                    // For desktop platforms, use console beep
-                    Console.Beep(800, 200); // 800Hz for 200ms
-                }
+                
+                // Play actual beep sound using AudioService
+                await AudioService.PlaySuccessBeepAsync();
             }
             catch (Exception ex)
             {
@@ -315,39 +328,6 @@ namespace ScannerMaui.Pages
             }
         }
         
-        private async Task PlayAndroidBeepSound()
-        {
-            try
-            {
-                // For Android, we'll use a simple approach with MediaPlayer
-                // This requires the audio permissions we added
-                System.Diagnostics.Debug.WriteLine("Playing Android beep sound...");
-                
-                // You can implement a custom beep sound here
-                // For now, we'll rely on the vibration feedback
-                await Task.Delay(100); // Small delay to ensure vibration is felt
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error playing Android beep: {ex.Message}");
-            }
-        }
-        
-        private async Task PlayiOSBeepSound()
-        {
-            try
-            {
-                // For iOS, we can use system sounds
-                System.Diagnostics.Debug.WriteLine("Playing iOS beep sound...");
-                
-                // iOS system sound implementation would go here
-                await Task.Delay(100);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error playing iOS beep: {ex.Message}");
-            }
-        }
         
         private async void PlayErrorSound()
         {
@@ -358,29 +338,10 @@ namespace ScannerMaui.Pages
                 {
                     // Use different haptic feedback for error
                     HapticFeedback.Default.Perform(HapticFeedbackType.LongPress);
-                    
-                    // Play error sound
-                    try
-                    {
-                        if (DeviceInfo.Platform == DevicePlatform.Android)
-                        {
-                            await PlayAndroidErrorSound();
-                        }
-                        else if (DeviceInfo.Platform == DevicePlatform.iOS)
-                        {
-                            await PlayiOSErrorSound();
-                        }
-                    }
-                    catch (Exception soundEx)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Error playing error sound: {soundEx.Message}");
-                    }
                 }
-                else
-                {
-                    // For desktop platforms, use different console beep for error
-                    Console.Beep(400, 300); // Lower frequency, longer duration for error
-                }
+                
+                // Play actual error beep sound using AudioService
+                await AudioService.PlayErrorBeepAsync();
             }
             catch (Exception ex)
             {
@@ -388,33 +349,6 @@ namespace ScannerMaui.Pages
             }
         }
         
-        private async Task PlayAndroidErrorSound()
-        {
-            try
-            {
-                System.Diagnostics.Debug.WriteLine("Playing Android error sound...");
-                // Android error sound implementation
-                await Task.Delay(150);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error playing Android error sound: {ex.Message}");
-            }
-        }
-        
-        private async Task PlayiOSErrorSound()
-        {
-            try
-            {
-                System.Diagnostics.Debug.WriteLine("Playing iOS error sound...");
-                // iOS error sound implementation
-                await Task.Delay(150);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error playing iOS error sound: {ex.Message}");
-            }
-        }
 
         private bool IsScanningAllowed()
         {

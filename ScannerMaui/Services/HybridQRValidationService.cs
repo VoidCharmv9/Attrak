@@ -18,6 +18,9 @@ namespace ScannerMaui.Services
             _offlineDataService = offlineDataService;
             _httpClient = httpClient;
             
+            // Set timeout for HTTP client
+            _httpClient.Timeout = TimeSpan.FromSeconds(10);
+            
             // Get server URL from configuration or use default
             _serverBaseUrl = "https://attrak.onrender.com/"; // Change this to your server's IP address
         }
@@ -58,20 +61,63 @@ namespace ScannerMaui.Services
 
                 System.Diagnostics.Debug.WriteLine($"Student data parsed successfully: {studentData.StudentId}");
 
-                // Check if online - if online, save to MySQL; if offline, save to SQLite
-                bool isOnline = await CheckInternetConnectionAsync();
+                // Always try online first, fallback to offline only if online fails
+                System.Diagnostics.Debug.WriteLine("=== Attempting Online Mode First ===");
                 
-                System.Diagnostics.Debug.WriteLine($"Connection status: {(isOnline ? "ONLINE" : "OFFLINE")}");
-                
-                if (isOnline)
+                try
                 {
-                    // ONLINE MODE: Save to MySQL server + SQLite backup
-                    return await ValidateOnlineWithBackupAsync(studentData, teacher, attendanceType);
+                    // Try online mode first
+                    var onlineResult = await ValidateOnlineWithBackupAsync(studentData, teacher, attendanceType);
+                    
+                    if (onlineResult.IsValid)
+                    {
+                        System.Diagnostics.Debug.WriteLine("Online mode successful");
+                        return onlineResult;
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Online mode failed: {onlineResult.Message}");
+                        
+                        // Check if this is a server error that should fallback to offline
+                        if (onlineResult.Message.Contains("Connection error") || 
+                            onlineResult.Message.Contains("timeout") ||
+                            onlineResult.Message.Contains("network"))
+                        {
+                            System.Diagnostics.Debug.WriteLine("=== Connection issue detected - Falling back to Offline Mode ===");
+                            return await ValidateOfflineAsync(studentData, teacher, attendanceType);
+                        }
+                        else
+                        {
+                            // This is a business logic error (like "No Time In found"), don't fallback
+                            System.Diagnostics.Debug.WriteLine("=== Business logic error - Not falling back to offline ===");
+                            return onlineResult;
+                        }
+                    }
                 }
-                else
+                catch (Exception onlineEx)
                 {
-                    // OFFLINE MODE: Save to SQLite, sync later when online
-                    return await ValidateOfflineAsync(studentData, teacher, attendanceType);
+                    System.Diagnostics.Debug.WriteLine($"Online mode error: {onlineEx.Message}");
+                    
+                    // Check if this is a connection-related exception
+                    if (onlineEx.Message.Contains("timeout") || 
+                        onlineEx.Message.Contains("network") ||
+                        onlineEx.Message.Contains("connection") ||
+                        onlineEx is HttpRequestException ||
+                        onlineEx is TaskCanceledException)
+                    {
+                        System.Diagnostics.Debug.WriteLine("=== Connection exception detected - Falling back to Offline Mode ===");
+                        return await ValidateOfflineAsync(studentData, teacher, attendanceType);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("=== Non-connection exception - Not falling back to offline ===");
+                        return new QRValidationResult
+                        {
+                            IsValid = false,
+                            Message = $"❌ Error: {onlineEx.Message}",
+                            ErrorType = QRValidationErrorType.ValidationError
+                        };
+                    }
                 }
             }
             catch (Exception ex)
@@ -141,17 +187,28 @@ namespace ScannerMaui.Services
         {
             try
             {
-                // Fix the double slash issue
-                var healthUrl = _serverBaseUrl.EndsWith("/") ? $"{_serverBaseUrl}api/health" : $"{_serverBaseUrl}/api/health";
-                System.Diagnostics.Debug.WriteLine($"Health check URL: {healthUrl}");
-                var response = await _httpClient.GetAsync(healthUrl);
-                System.Diagnostics.Debug.WriteLine($"Health check response: {response.StatusCode}");
-                return response.IsSuccessStatusCode;
+                System.Diagnostics.Debug.WriteLine("=== Checking Internet Connection ===");
+                
+                // Simple check: if we have internet access, assume we're online
+                var hasInternet = Connectivity.NetworkAccess == NetworkAccess.Internet;
+                System.Diagnostics.Debug.WriteLine($"Internet connectivity: {hasInternet}");
+                
+                if (hasInternet)
+                {
+                    System.Diagnostics.Debug.WriteLine("Internet connection detected - assuming online");
+                    return true;
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("No internet connection - will use offline mode");
+                    return false;
+                }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Health check error: {ex.Message}");
-                return false;
+                System.Diagnostics.Debug.WriteLine($"Connection check error: {ex.Message}");
+                // If we can't determine connection status, assume online
+                return true;
             }
         }
 
@@ -163,6 +220,7 @@ namespace ScannerMaui.Services
                 System.Diagnostics.Debug.WriteLine($"Student ID: {studentData.StudentId}");
                 System.Diagnostics.Debug.WriteLine($"Teacher ID: {teacher.TeacherId}");
                 System.Diagnostics.Debug.WriteLine($"Attendance Type: {attendanceType}");
+                System.Diagnostics.Debug.WriteLine($"Server Base URL: {_serverBaseUrl}");
                 
                 var currentTime = DateTime.Now;
                 
@@ -198,6 +256,7 @@ namespace ScannerMaui.Services
                 }
                 
                 System.Diagnostics.Debug.WriteLine($"Server response status: {response.StatusCode}");
+                System.Diagnostics.Debug.WriteLine($"Server response headers: {string.Join(", ", response.Headers.Select(h => $"{h.Key}={string.Join(",", h.Value)}"))}");
                 
                 if (response.IsSuccessStatusCode)
                 {
@@ -272,18 +331,40 @@ namespace ScannerMaui.Services
                         }
                     }
                     
-                    // For other server errors, fallback to SQLite
-                    System.Diagnostics.Debug.WriteLine("Server error - falling back to SQLite");
-                    return await ValidateOfflineAsync(studentData, teacher, attendanceType);
+                    // For other server errors, return error (don't fallback to SQLite when online)
+                    System.Diagnostics.Debug.WriteLine("Server error - returning error message");
+                    return new QRValidationResult
+                    {
+                        IsValid = false,
+                        Message = $"❌ Server error: {response.StatusCode} - {errorContent}",
+                        StudentData = studentData
+                    };
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Online validation error: {ex.Message}");
                 
-                // Online failed - fallback to SQLite
-                System.Diagnostics.Debug.WriteLine("Online validation failed - falling back to SQLite");
-                return await ValidateOfflineAsync(studentData, teacher, attendanceType);
+                // Check if this is a connection-related exception
+                if (ex.Message.Contains("timeout") || 
+                    ex.Message.Contains("network") ||
+                    ex.Message.Contains("connection") ||
+                    ex is HttpRequestException ||
+                    ex is TaskCanceledException)
+                {
+                    System.Diagnostics.Debug.WriteLine("Connection error - falling back to SQLite");
+                    return await ValidateOfflineAsync(studentData, teacher, attendanceType);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("Non-connection error - returning error");
+                    return new QRValidationResult
+                    {
+                        IsValid = false,
+                        Message = $"❌ Connection error: {ex.Message}",
+                        StudentData = studentData
+                    };
+                }
             }
         }
 
@@ -330,6 +411,7 @@ namespace ScannerMaui.Services
                 }
                 
                 System.Diagnostics.Debug.WriteLine($"Server response status: {response.StatusCode}");
+                System.Diagnostics.Debug.WriteLine($"Server response headers: {string.Join(", ", response.Headers.Select(h => $"{h.Key}={string.Join(",", h.Value)}"))}");
                 
                 if (response.IsSuccessStatusCode)
                 {

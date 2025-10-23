@@ -69,8 +69,22 @@ namespace ServerAtrrak.Controllers
         {
             try
             {
+                _logger.LogInformation("TimeIn request received for student: {StudentId}, Date: {Date}, TimeIn: {TimeIn}", 
+                    request?.StudentId, request?.Date, request?.TimeIn);
+                
+                if (request == null)
+                {
+                    _logger.LogWarning("Request is null");
+                    return BadRequest(new DailyTimeInResponse
+                    {
+                        Success = false,
+                        Message = "Request is null"
+                    });
+                }
+                
                 if (!ModelState.IsValid)
                 {
+                    _logger.LogWarning("Invalid model state: {ModelState}", ModelState);
                     return BadRequest(new DailyTimeInResponse
                     {
                         Success = false,
@@ -80,6 +94,31 @@ namespace ServerAtrrak.Controllers
 
                 using var connection = new MySqlConnection(_dbConnection.GetConnection());
                 await connection.OpenAsync();
+                _logger.LogInformation("Database connection opened successfully");
+                
+                // Validate request data
+                if (string.IsNullOrEmpty(request.StudentId))
+                {
+                    _logger.LogWarning("StudentId is null or empty");
+                    return BadRequest(new DailyTimeInResponse
+                    {
+                        Success = false,
+                        Message = "StudentId is required"
+                    });
+                }
+                
+                if (request.TimeIn == default(TimeSpan))
+                {
+                    _logger.LogWarning("TimeIn is not provided or invalid");
+                    return BadRequest(new DailyTimeInResponse
+                    {
+                        Success = false,
+                        Message = "TimeIn is required"
+                    });
+                }
+                
+                _logger.LogInformation("Request validation passed - StudentId: {StudentId}, Date: {Date}, TimeIn: {TimeIn}", 
+                    request.StudentId, request.Date, request.TimeIn);
 
                 // First check if there's already a record for this student on any recent date (within last 3 days)
                 var recentCheckQuery = "SELECT AttendanceId, TimeIn, TimeOut, Date FROM daily_attendance WHERE StudentId = @StudentId AND Date >= @RecentDate ORDER BY Date DESC, CreatedAt DESC LIMIT 1";
@@ -185,7 +224,9 @@ namespace ServerAtrrak.Controllers
                     updateCommand.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
                     updateCommand.Parameters.AddWithValue("@AttendanceId", existingId);
 
+                    _logger.LogInformation("Executing update query for AttendanceId: {AttendanceId}", existingId);
                     await updateCommand.ExecuteNonQueryAsync();
+                    _logger.LogInformation("Update completed successfully");
                 }
                 else
                 {
@@ -203,7 +244,9 @@ namespace ServerAtrrak.Controllers
                     insertCommand.Parameters.AddWithValue("@Remarks", isLate ? "Late arrival" : "");
                     insertCommand.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
 
+                    _logger.LogInformation("Executing insert query for StudentId: {StudentId}", request.StudentId);
                     await insertCommand.ExecuteNonQueryAsync();
+                    _logger.LogInformation("Insert completed successfully");
                 }
 
                 _logger.LogInformation("Daily attendance marked for student: {StudentId}, Status: {Status}", request.StudentId, status);
