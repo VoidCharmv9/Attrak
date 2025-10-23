@@ -449,11 +449,11 @@ namespace ServerAtrrak.Controllers
                         {
                             // Check if we're trying to update with duplicate TimeIn or TimeOut
                             var checkExistingQuery = "SELECT TimeIn, TimeOut FROM daily_attendance WHERE StudentId = @StudentId AND Date = @Date";
-                            using var checkCommand = new MySqlCommand(checkExistingQuery, connection);
-                            checkCommand.Parameters.AddWithValue("@StudentId", record.StudentId);
-                            checkCommand.Parameters.AddWithValue("@Date", record.Date.Date);
+                            using var checkExistingCommand = new MySqlCommand(checkExistingQuery, connection);
+                            checkExistingCommand.Parameters.AddWithValue("@StudentId", record.StudentId);
+                            checkExistingCommand.Parameters.AddWithValue("@Date", record.Date.Date);
                             
-                            using var reader = await checkCommand.ExecuteReaderAsync();
+                            using var reader = await checkExistingCommand.ExecuteReaderAsync();
                             if (await reader.ReadAsync())
                             {
                                 var existingTimeIn = reader.IsDBNull("TimeIn") ? null : reader.GetString("TimeIn");

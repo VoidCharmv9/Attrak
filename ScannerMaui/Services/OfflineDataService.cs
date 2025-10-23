@@ -239,6 +239,38 @@ namespace ScannerMaui.Services
                     
                     if (existingId != null)
                     {
+                        // Check if we're trying to add TimeIn when TimeIn already exists
+                        if (attendanceType == "TimeIn")
+                        {
+                            var checkTimeInCommand = new SqliteCommand(
+                                "SELECT time_in FROM offline_daily_attendance WHERE attendance_id = @attendanceId",
+                                connection);
+                            checkTimeInCommand.Parameters.AddWithValue("@attendanceId", existingId);
+                            
+                            var existingTimeIn = await checkTimeInCommand.ExecuteScalarAsync();
+                            if (existingTimeIn != null && !string.IsNullOrEmpty(existingTimeIn.ToString()))
+                            {
+                                System.Diagnostics.Debug.WriteLine($"TimeIn already exists for student {studentId} on {today}. Skipping duplicate TimeIn.");
+                                return true; // Return success but don't create duplicate
+                            }
+                        }
+                        
+                        // Check if we're trying to add TimeOut when TimeOut already exists
+                        if (attendanceType == "TimeOut")
+                        {
+                            var checkTimeOutCommand = new SqliteCommand(
+                                "SELECT time_out FROM offline_daily_attendance WHERE attendance_id = @attendanceId",
+                                connection);
+                            checkTimeOutCommand.Parameters.AddWithValue("@attendanceId", existingId);
+                            
+                            var existingTimeOut = await checkTimeOutCommand.ExecuteScalarAsync();
+                            if (existingTimeOut != null && !string.IsNullOrEmpty(existingTimeOut.ToString()))
+                            {
+                                System.Diagnostics.Debug.WriteLine($"TimeOut already exists for student {studentId} on {today}. Skipping duplicate TimeOut.");
+                                return true; // Return success but don't create duplicate
+                            }
+                        }
+                        
                         // Update existing record - fix column name mapping and reset sync status
                         var columnName = attendanceType == "TimeIn" ? "time_in" : "time_out";
                         var updateCommand = new SqliteCommand(

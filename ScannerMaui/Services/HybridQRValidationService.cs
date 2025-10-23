@@ -399,8 +399,13 @@ namespace ScannerMaui.Services
                     .GroupBy(r => new { r.StudentId, Date = r.ScanTime.Date })
                     .Select(group => 
                     {
-                        var timeInRecord = group.FirstOrDefault(r => r.AttendanceType == "TimeIn");
-                        var timeOutRecord = group.FirstOrDefault(r => r.AttendanceType == "TimeOut");
+                        // Get the LATEST TimeIn and TimeOut records to avoid duplicates
+                        var timeInRecord = group.Where(r => r.AttendanceType == "TimeIn")
+                                              .OrderByDescending(r => r.ScanTime)
+                                              .FirstOrDefault();
+                        var timeOutRecord = group.Where(r => r.AttendanceType == "TimeOut")
+                                                .OrderByDescending(r => r.ScanTime)
+                                                .FirstOrDefault();
                         
                         // Determine status and remarks based on actual attendance
                         string status = "Present";
